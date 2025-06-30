@@ -36,27 +36,50 @@ solvable in software (hardware-backed attestation, ML liveness).
 
 ---
 
-## Quick start
+## Quick start — native scrcpy (recommended)
+
+One self-contained script: starts a phone with the correct image, applies the
+anti-crash settings, optionally routes it through a proxy, and hands you the
+`scrcpy` command. No `.env`, no web server, no Python needed.
 
 ```bash
-# 0. Prereqs: Ubuntu + Docker (with the compose v2 plugin) + git
-git clone <this-repo> cloudphone && cd cloudphone
+# 0. Prereqs: Ubuntu + Docker + git  (WSL2 is fine)
+git clone https://github.com/ianwanjohi475/cloudphone.git cloudphone && cd cloudphone
 
 # 1. Load host kernel modules (binder / ashmem / v4l2loopback) — once per boot
 sudo ./scripts/setup-host.sh
-./scripts/doctor.sh           # verify the host is ready
+./scripts/doctor.sh
 
-# 2. Configure and launch the base stack (1 phone + ws-scrcpy + dashboard)
-cp .env.example .env          # edit if you like
-make up
+# 2. Start a phone (add a proxy with PROXY=host:port:user:pass)
+./scripts/start-phone.sh
+# or, proxied:
+# PROXY="161.77.95.162:22325:user:pass" ./scripts/start-phone.sh
 
-# 3. Open the dashboard
-#    Dashboard : http://localhost:8080
-#    ws-scrcpy : http://localhost:8000
+# 3. Open the phone in a native scrcpy window
+sudo apt-get install -y scrcpy
+scrcpy -s localhost:5555
 ```
 
-The dashboard lists your phone, shows health, and a **View** button opens the
-live screen. Click **+ New phone** to scale out.
+Install an app:  `adb -s localhost:5555 install -r yourapp.apk`
+Stop the phone:  `./scripts/stop-phone.sh`
+
+> WSL2: scrcpy needs a GUI. Windows 11 (WSLg) shows it automatically; on
+> Windows 10 run an X server and `export DISPLAY=:0` first.
+
+## Optional — web stack (dashboard + ws-scrcpy)
+
+If you prefer browser control and multi-phone orchestration instead of native
+scrcpy:
+
+```bash
+cp .env.example .env          # ships the correct redroid:13.0.0-latest tag
+make up                       # dashboard :8080, ws-scrcpy :8000
+make install-cli              # PEP 668-safe venv install of the CLI
+```
+
+> Already have a stale `.env` failing with `redroid/redroid:13.0.0: not found`?
+> Regenerate it: `cp .env.example .env` (the old template expanded a bare,
+> non-existent tag).
 
 ### CLI
 

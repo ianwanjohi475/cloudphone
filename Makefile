@@ -4,7 +4,7 @@ SHELL := /bin/bash
 
 ENV_FILE := .env
 
-.PHONY: help setup up down logs ps restart install-cli test lint fmt clean nuke doctor
+.PHONY: help setup up down logs ps restart install-cli test lint fmt clean nuke doctor phone stop scrcpy
 
 help: ## Show this help
 	@grep -hE '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -36,8 +36,21 @@ ps: ## List running cloudphone containers
 logs: ## Tail logs (use S=redroid-0 to scope to one service)
 	docker compose logs -f $(S)
 
-install-cli: ## Install the orchestrator CLI into the current Python env
-	pip install -e ./orchestrator
+phone: ## Start ONE phone for native scrcpy (set PROXY=host:port:user:pass to proxy it)
+	./scripts/start-phone.sh
+
+scrcpy: ## Open the phone in scrcpy (install scrcpy if missing)
+	command -v scrcpy >/dev/null || sudo apt-get install -y scrcpy
+	adb connect localhost:$${ADB_PORT:-5555} && scrcpy -s localhost:$${ADB_PORT:-5555}
+
+stop: ## Stop the phone started by `make phone`
+	./scripts/stop-phone.sh
+
+install-cli: ## Install the orchestrator CLI into a local venv (.venv), PEP 668-safe
+	python3 -m venv .venv
+	./.venv/bin/pip install -q -e ./orchestrator
+	@echo "CLI installed. Use it via:  ./.venv/bin/cloudphone --help"
+	@echo "or activate:  source .venv/bin/activate  then  cloudphone --help"
 
 test: ## Run the Python test suite
 	cd orchestrator && python -m pytest -q
