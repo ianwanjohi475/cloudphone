@@ -1,0 +1,19 @@
+# Proxy pool — map phones to upstream proxies.
+# Copy to config/proxies.yaml (gitignored) and fill in real endpoints.
+# The CLI/dashboard read this when assigning proxies to new phones.
+
+defaults:
+  mode: transparent        # http | socks5 | transparent | browser
+
+pool:
+  - name: residential-us-1
+    url: socks5://user:pass@us1.example-proxy.net:1080
+  - name: residential-uk-1
+    url: http://user:pass@uk1.example-proxy.net:8080
+  - name: datacenter-de-1
+    url: socks5://de1.example-proxy.net:1080
+
+# Optional pinning: phone-name -> proxy-name
+assignments:
+  redroid-0: residential-us-1
+  redroid-1: residential-uk-1

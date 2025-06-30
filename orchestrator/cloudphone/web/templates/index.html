@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>cloudphone</title>
+  <link rel="stylesheet" href="/static/app.css" />
+</head>
+<body>
+  <header>
+    <h1>☁️ cloudphone</h1>
+    <div class="actions">
+      <select id="profile">
+        <option value="pixel_7">Pixel 7</option>
+        <option value="pixel_6">Pixel 6</option>
+        <option value="samsung_s21">Samsung S21</option>
+        <option value="xiaomi_redmi_note11">Redmi Note 11</option>
+        <option value="generic_x86_64">Generic x86_64</option>
+      </select>
+      <input id="count" type="number" min="1" max="10" value="1" title="count" />
+      <button id="create">+ New phone</button>
+      <button id="refresh" class="ghost">⟳</button>
+    </div>
+  </header>
+
+  <main>
+    <table id="phones">
+      <thead>
+        <tr>
+          <th>Name</th><th>Status</th><th>Profile</th><th>Proxy</th>
+          <th>Booted</th><th>CPU%</th><th>Mem</th><th>Crashes</th><th>Controls</th>
+        </tr>
+      </thead>
+      <tbody id="rows"><tr><td colspan="9" class="muted">Loading…</td></tr></tbody>
+    </table>
+  </main>
+
+  <div id="viewer" class="hidden">
+    <div class="viewer-bar">
+      <span id="viewer-title"></span>
+      <button id="viewer-close" class="ghost">✕</button>
+    </div>
+    <iframe id="scrcpy" src="about:blank"></iframe>
+  </div>
+
+  <script>
+    window.SCRCPY_PORT = {{ scrcpy_port }};
+  </script>
+  <script src="/static/app.js"></script>
+</body>
+</html>

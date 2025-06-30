@@ -1,0 +1,82 @@
+# cloudphone — base stack
+#
+# Brings up ONE phone (redroid-0), the ws-scrcpy web client, an adb hub, and
+# the orchestrator dashboard. Spawn additional phones with the CLI:
+#     cloudphone create --count 3
+# which launches more `redroid/redroid` containers on the `cloudphone` network.
+#
+# Requires host kernel modules: binder_linux + (ashmem_linux | memfd).
+# Run `sudo ./scripts/setup-host.sh` once before `make up`.
+
+name: cloudphone
+
+x-redroid-common: &redroid-common
+  image: ${REDROID_IMAGE:-redroid/redroid:13.0.0}
+  privileged: true
+  restart: unless-stopped
+  networks: [cloudphone]
+  # Anti-crash baseline. `gpu.mode=guest` = software rendering (SwiftShader),
+  # the single most effective fix for Chrome/WebGL/Persona startup crashes on
+  # hosts without a passed-through GPU. Switch to `host` once /dev/dri works.
+  command:
+    - androidboot.redroid_width=${REDROID_WIDTH:-720}
+    - androidboot.redroid_height=${REDROID_HEIGHT:-1280}
+    - androidboot.redroid_dpi=${REDROID_DPI:-320}
+    - androidboot.redroid_fps=${REDROID_FPS:-30}
+    - androidboot.redroid_gpu_mode=${REDROID_GPU_MODE:-guest}
+    - androidboot.use_memfd=1
+    - androidboot.redroid_net_ndns=1
+
+services:
+  redroid-0:
+    <<: *redroid-common
+    container_name: cloudphone-redroid-0
+    hostname: redroid-0
+    ports:
+      - "${ADB_BASE_PORT:-5555}:5555"
+    volumes:
+      - ${DATA_ROOT:-./data}/redroid-0:/data
+    deploy:
+      resources:
+        limits:
+          memory: ${REDROID_MEMORY:-4g}
+          cpus: "${REDROID_CPUS:-2}"
+    # GPU passthrough (uncomment + set REDROID_GPU_MODE=host):
+    # devices:
+    #   - ${REDROID_GPU_NODE:-/dev/dri/renderD128}:${REDROID_GPU_NODE:-/dev/dri/renderD128}
+
+  ws-scrcpy:
+    build: ./docker/ws-scrcpy
+    image: cloudphone/ws-scrcpy:latest
+    container_name: cloudphone-ws-scrcpy
+    restart: unless-stopped
+    networks: [cloudphone]
+    depends_on: [redroid-0]
+    environment:
+      # Devices the entrypoint auto-`adb connect`s on boot (comma separated).
+      AUTO_CONNECT: "redroid-0:5555"
+    ports:
+      - "${SCRCPY_PORT:-8000}:8000"
+
+  dashboard:
+    build: ./docker/dashboard
+    image: cloudphone/dashboard:latest
+    container_name: cloudphone-dashboard
+    restart: unless-stopped
+    networks: [cloudphone]
+    depends_on: [ws-scrcpy]
+    environment:
+      DASHBOARD_SECRET: ${DASHBOARD_SECRET:-change-me-please}
+      SCRCPY_PORT: ${SCRCPY_PORT:-8000}
+      DATA_ROOT: /data
+    volumes:
+      # Lets the dashboard/orchestrator manage sibling phone containers.
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${DATA_ROOT:-./data}:/data
+    ports:
+      - "${DASHBOARD_PORT:-8080}:8080"
+
+networks:
+  cloudphone:
+    name: cloudphone
+    driver: bridge
