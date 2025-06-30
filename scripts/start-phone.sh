@@ -18,7 +18,8 @@ PHONE="${PHONE:-cloudphone-redroid-0}"
 TAG="${ANDROID_TAG:-redroid/redroid:13.0.0-latest}"
 ADB_PORT="${ADB_PORT:-5555}"
 NET="cloudphone"
-W="${WIDTH:-720}"; H="${HEIGHT:-1280}"; DPI="${DPI:-320}"
+# Nexus/Samsung-class phone screen by default (1080x1920 @ 480dpi).
+W="${WIDTH:-1080}"; H="${HEIGHT:-1920}"; DPI="${DPI:-480}"
 DATA="${DATA_ROOT:-$HOME/cloudphone-data}/${PHONE}"
 PROXY="${PROXY:-}"
 
@@ -133,4 +134,6 @@ fi
 
 log "opening the phone window (scrcpy)… close the window to detach; phone keeps running."
 adb connect "localhost:${ADB_PORT}" >/dev/null 2>&1 || true
-exec scrcpy -s "localhost:${ADB_PORT}" --window-title "$PHONE" --max-size 1024
+# --no-audio: redroid has no audio encoder; scrcpy's audio thread would crash
+# the session without it (opus/aac NAME_NOT_FOUND).
+exec scrcpy -s "localhost:${ADB_PORT}" --no-audio --window-title "$PHONE" --max-size 1024

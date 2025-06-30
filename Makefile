@@ -41,7 +41,7 @@ phone: ## Start ONE phone for native scrcpy (set PROXY=host:port:user:pass to pr
 
 scrcpy: ## Open the phone in scrcpy (install scrcpy if missing)
 	command -v scrcpy >/dev/null || sudo apt-get install -y scrcpy
-	adb connect localhost:$${ADB_PORT:-5555} && scrcpy -s localhost:$${ADB_PORT:-5555}
+	adb connect localhost:$${ADB_PORT:-5555} && scrcpy -s localhost:$${ADB_PORT:-5555} --no-audio --max-size 1024
 
 stop: ## Stop the phone started by `make phone`
 	./scripts/stop-phone.sh
