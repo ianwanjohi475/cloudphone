@@ -70,11 +70,16 @@ Dashboard at `http://localhost:8080`, ws-scrcpy at `http://localhost:8000`.
 
 ## 5. ARM vs x86 apps
 
-Your laptop is x86_64, so x86 images are fastest. Many Play apps ship ARM-only
-native libraries. To run them, use a Redroid image built with a **native
-bridge** (libhoudini / libndk translation) — pick the matching
-`redroid/redroid:<ver>_64only-arm-arm64`-style tag and set the
-`generic_x86_64` profile's `abilist` (already includes arm). See
+Your laptop is x86_64, so the stock `redroid/redroid:13.0.0-latest` image runs
+native and is fastest. The stock images are x86_64/arm64 **native** and do not
+translate ARM — so an app with ARM-only native libs fails with
+`INSTALL_FAILED_NO_MATCHING_ABIS`.
+
+To run ARM-only apps on x86 you need a Redroid image that bundles a **native
+bridge** (libndk_translation / libhoudini). These are community-built images,
+not the stock tags. Point `REDROID_IMAGE` at one in `.env`; the `generic_x86_64`
+profile already advertises arm in its `abilist`. Most apps that ship x86 libs
+(the majority) work on the stock image with no extra setup. See
 [`docs/features.md`](features.md#armx86-compatibility).
 
 ## 6. GPU passthrough (optional, faster)

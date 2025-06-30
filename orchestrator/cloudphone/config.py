@@ -16,7 +16,7 @@ def _env(key: str, default: str) -> str:
 class Settings:
     # Image / android
     redroid_image: str = field(
-        default_factory=lambda: _env("REDROID_IMAGE", "redroid/redroid:13.0.0")
+        default_factory=lambda: _env("REDROID_IMAGE", "redroid/redroid:13.0.0-latest")
     )
     android_version: str = field(default_factory=lambda: _env("ANDROID_VERSION", "13.0.0"))
 

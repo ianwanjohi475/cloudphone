@@ -11,7 +11,7 @@
 name: cloudphone
 
 x-redroid-common: &redroid-common
-  image: ${REDROID_IMAGE:-redroid/redroid:13.0.0}
+  image: ${REDROID_IMAGE:-redroid/redroid:13.0.0-latest}
   privileged: true
   restart: unless-stopped
   networks: [cloudphone]
