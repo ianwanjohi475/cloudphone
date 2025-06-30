@@ -31,6 +31,20 @@ docker info >/dev/null 2>&1 || die "docker daemon not reachable (start Docker De
 mkdir -p "$DATA"
 docker network inspect "$NET" >/dev/null 2>&1 || { log "creating docker network '$NET'"; docker network create "$NET" >/dev/null; }
 
+# ── 0. clean up leftovers so ports/names don't collide ───────────────────────
+# Remove our own old phone/proxy, plus ANY container holding the adb port.
+log "cleaning up old cloudphone containers…"
+docker rm -f "$PHONE" cloudphone-proxy >/dev/null 2>&1 || true
+busy="$(docker ps -q --filter "publish=${ADB_PORT}")"
+[[ -n "$busy" ]] && { log "freeing host port ${ADB_PORT}"; docker rm -f $busy >/dev/null 2>&1 || true; }
+# Also clear any leftover redroid phones from earlier attempts (frees RAM).
+if [[ "${KEEP_OTHERS:-}" != "1" ]]; then
+  others="$(docker ps -aq --filter 'name=cloudphone-redroid-')"
+  [[ -n "$others" ]] && docker rm -f $others >/dev/null 2>&1 || true
+fi
+# Reset adb so stale device entries don't confuse scrcpy (re-detects below).
+adb kill-server >/dev/null 2>&1 || true
+
 # ── 1. optional authenticated SOCKS5 -> local HTTP/SOCKS bridge (gost) ───────
 PROXY_IP=""
 if [[ -n "$PROXY" ]]; then
@@ -94,21 +108,29 @@ if [[ -n "$PROXY_IP" ]]; then
   echo "    adb -s localhost:${ADB_PORT} shell 'curl -s https://ifconfig.me || true'"
 fi
 
-# ── 6. scrcpy ────────────────────────────────────────────────────────────────
+# ── 6. open the phone in scrcpy ──────────────────────────────────────────────
 echo
-log "PHONE READY ✓   (native scrcpy — no web UI)"
+log "PHONE READY ✓   device = localhost:${ADB_PORT}"
+echo "  Install an app (APK):  adb -s localhost:${ADB_PORT} install -r yourapp.apk"
+echo "  Stop the phone:        ./scripts/stop-phone.sh"
 echo
-if command -v scrcpy >/dev/null; then
-  echo "  Open the phone window:"
-  echo "      scrcpy -s localhost:${ADB_PORT}"
-else
-  echo "  Install scrcpy, then open the phone window:"
-  echo "      sudo apt-get install -y scrcpy"
-  echo "      scrcpy -s localhost:${ADB_PORT}"
+
+if ! command -v scrcpy >/dev/null; then
+  log "installing scrcpy…"; sudo apt-get update -qq && sudo apt-get install -y -qq scrcpy || true
 fi
-echo
-echo "  Install an app (APK):   adb -s localhost:${ADB_PORT} install -r yourapp.apk"
-echo "  Stop the phone:         ./scripts/stop-phone.sh"
-echo
-echo "  (WSL2 note: scrcpy needs a GUI. Windows 11 WSLg shows it automatically;"
-echo "   on Windows 10 install an X server and 'export DISPLAY=:0' first.)"
+
+if [[ "${NO_VIEW:-}" == "1" ]]; then
+  echo "  Open it yourself:  scrcpy -s localhost:${ADB_PORT}"
+  exit 0
+fi
+
+if [[ -z "${DISPLAY:-}" ]]; then
+  log "No \$DISPLAY set — scrcpy needs a GUI."
+  echo "  Windows 11 (WSLg): run 'export DISPLAY=:0' then: scrcpy -s localhost:${ADB_PORT}"
+  echo "  Windows 10: install VcXsrv, 'export DISPLAY=\$(grep nameserver /etc/resolv.conf|awk '{print \$2}'):0', then scrcpy."
+  exit 0
+fi
+
+log "opening the phone window (scrcpy)… close the window to detach; phone keeps running."
+adb connect "localhost:${ADB_PORT}" >/dev/null 2>&1 || true
+exec scrcpy -s "localhost:${ADB_PORT}" --window-title "$PHONE" --max-size 1024
