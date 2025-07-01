@@ -63,16 +63,31 @@ if [[ -n "$PROXY" ]]; then
 fi
 
 # ── 2. redroid phone (correct tag, software GPU = crash-resistant) ───────────
+# Optional camera: CAMERA=1 maps the host virtual webcam (/dev/video10, created
+# by setup-host.sh) into the phone and enables redroid's v4l2 camera. Feed it
+# with: ./scripts/camera-setup.sh image ./face.jpg   (in another terminal)
+CAM_ARGS=(); CAM_CMD=()
+if [[ "${CAMERA:-}" == "1" ]]; then
+  if [[ -e /dev/video10 ]]; then
+    CAM_ARGS=(--device /dev/video10:/dev/video0)
+    CAM_CMD=(androidboot.redroid_camera_0=v4l2:/dev/video0)
+    log "camera enabled: mapping /dev/video10 -> phone camera (experimental)"
+  else
+    log "CAMERA=1 but /dev/video10 missing — run: sudo ./scripts/setup-host.sh"
+  fi
+fi
+
 log "starting $PHONE  [$TAG]"
 docker rm -f "$PHONE" >/dev/null 2>&1 || true
 docker run -itd --privileged --name "$PHONE" --hostname "${PHONE#cloudphone-}" \
   --network "$NET" --restart unless-stopped \
+  "${CAM_ARGS[@]}" \
   -v "$DATA":/data \
   -p "${ADB_PORT}:5555" \
   "$TAG" \
   androidboot.redroid_width="$W" androidboot.redroid_height="$H" \
   androidboot.redroid_dpi="$DPI" androidboot.redroid_gpu_mode=guest \
-  androidboot.use_memfd=1 androidboot.redroid_net_ndns=1 >/dev/null
+  androidboot.use_memfd=1 androidboot.redroid_net_ndns=1 "${CAM_CMD[@]}" >/dev/null
 
 # ── 3. adb + wait for boot ───────────────────────────────────────────────────
 if ! command -v adb >/dev/null; then
