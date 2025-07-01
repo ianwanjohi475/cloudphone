@@ -1,65 +1,61 @@
 #!/usr/bin/env bash
-# install-store.sh — put an app store + browsers on the phone, the reliable way.
+# install-store.sh — put a working app store + browsers on the phone.
 #
-# Installs:
-#   1. F-Droid       (open-source store; universal APK, always works)
-#   2. Aurora Store  (open-source Google Play CLIENT — installs the *real*
-#                     Chrome / Firefox from Google with an anonymous account,
-#                     no GApps and no Google sign-in required)
-# Then applies the Chrome/WebView anti-crash flags so Chromium browsers don't
-# die on a GPU that isn't there.
+# Redroid has no Play Store. This installs (all straight from F-Droid's official
+# API, no Google account needed):
+#   - F-Droid       open-source store
+#   - Aurora Store  an open-source Google Play CLIENT — installs the *real*
+#                   Chrome and any Play app anonymously (this is your "Play Store")
+#   - Firefox       (Fennec) directly, works immediately
+# Then applies the Chrome/WebView anti-crash flags.
 #
-# After it runs: open Aurora Store on the phone (via scrcpy), let it log in
-# anonymously, search "Chrome" / "Firefox", install. They'll run.
-#
-#   ./scripts/install-store.sh            # default phone on localhost:5555
+#   ./scripts/install-store.sh
 #   ADB_PORT=5585 ./scripts/install-store.sh
+#   APPS="com.aurora.store org.mozilla.fennec_fdroid org.videolan.vlc" ./scripts/install-store.sh
 set -euo pipefail
 
 ADB_PORT="${ADB_PORT:-5555}"
-DL="${DOWNLOAD_DIR:-$HOME/cloudphone-data/downloads}"
 ADDR="localhost:${ADB_PORT}"
+DL="${DOWNLOAD_DIR:-$HOME/cloudphone-data/downloads}"
+# Default set: F-Droid store client, Aurora (Play client), Firefox.
+APPS="${APPS:-org.fdroid.fdroid com.aurora.store org.mozilla.fennec_fdroid}"
+
 log(){ printf '\033[1;36m[store]\033[0m %s\n' "$*"; }
 die(){ printf '\033[1;31m[error]\033[0m %s\n' "$*" >&2; exit 1; }
 
-command -v adb >/dev/null || die "adb not found"
+command -v adb  >/dev/null || die "adb not found"
 command -v curl >/dev/null || die "curl not found (sudo apt-get install -y curl)"
 mkdir -p "$DL"
 adb connect "$ADDR" >/dev/null 2>&1 || true
 adb -s "$ADDR" wait-for-device
 
-install_apk(){ # url, name
-  local url="$1" name="$2" out="$DL/$2.apk"
-  if [[ ! -s "$out" ]]; then
-    log "downloading $name…"
-    curl -fSL --retry 3 -o "$out" "$url" || { log "download failed for $name ($url)"; return 1; }
-  fi
-  log "installing $name…"
-  adb -s "$ADDR" install -r -g "$out" >/dev/null 2>&1 \
-    && log "$name installed ✓" \
-    || { adb -s "$ADDR" install -r "$out" >/dev/null 2>&1 && log "$name installed ✓" || log "$name install failed"; }
+# Resolve the latest APK URL for an F-Droid package via the official API.
+fdroid_url(){ # package -> prints https URL or nothing
+  local pkg="$1" code
+  code="$(curl -fsSL "https://f-droid.org/api/v1/packages/${pkg}" 2>/dev/null \
+        | python3 -c 'import sys,json; print(json.load(sys.stdin)["suggestedVersionCode"])' 2>/dev/null || true)"
+  [[ -n "$code" ]] && echo "https://f-droid.org/repo/${pkg}_${code}.apk"
 }
 
-# 1. F-Droid (stable, universal) -------------------------------------------------
-install_apk "https://f-droid.org/F-Droid.apk" "FDroid" || true
+fdroid_install(){ # package
+  local pkg="$1" url out="$DL/$1.apk"
+  url="$(fdroid_url "$pkg")"
+  [[ -z "$url" ]] && { log "could not resolve $pkg on F-Droid — skipping"; return 1; }
+  if [[ ! -s "$out" ]]; then
+    log "downloading $pkg…"
+    curl -fSL --retry 3 -o "$out" "$url" || { log "download failed: $pkg"; return 1; }
+  fi
+  log "installing $pkg…"
+  if adb -s "$ADDR" install -r -g "$out" >/dev/null 2>&1 || adb -s "$ADDR" install -r "$out" >/dev/null 2>&1; then
+    log "$pkg installed ✓"
+  else
+    log "$pkg install failed (ABI mismatch? see build-image.sh for ARM support)"
+  fi
+}
 
-# 2. Aurora Store — resolve latest APK from the GitLab release API ---------------
-log "resolving latest Aurora Store…"
-AURORA_URL="$(curl -fsSL "https://gitlab.com/api/v4/projects/AuroraOSS%2FAuroraStore/releases" 2>/dev/null \
-  | python3 -c 'import sys,json
-try:
-    rels=json.load(sys.stdin)
-    for a in rels[0]["assets"]["links"]:
-        if a["url"].endswith(".apk"): print(a["url"]); break
-except Exception: pass' || true)"
-if [[ -n "$AURORA_URL" ]]; then
-  install_apk "$AURORA_URL" "AuroraStore" || true
-else
-  log "couldn't auto-resolve Aurora — install it from inside F-Droid instead"
-  log "(F-Droid → search 'Aurora Store' → Install)"
-fi
+for pkg in $APPS; do fdroid_install "$pkg" || true; done
 
-# 3. Anti-crash flags for Chromium browsers -------------------------------------
+# Chrome/WebView anti-crash flags (so Chromium browsers don't die on software GL).
 log "applying Chrome/WebView anti-crash flags…"
 FLAGS='chrome --use-gl=swiftshader --disable-gpu --in-process-gpu --no-sandbox --disable-features=Vulkan'
 for f in chrome-command-line webview-command-line; do
@@ -68,17 +64,15 @@ done
 
 cat <<EOF
 
-$(log "DONE")
-On the phone (scrcpy window):
-  1. Open "Aurora Store"  → Anonymous login (no Google account needed)
-  2. Search "Chrome"   → Install
-  3. Search "Firefox"  → Install
-  4. Open them — they're configured not to GPU-crash.
+$(log "DONE — installed apps:")
+$(adb -s "$ADDR" shell pm list packages -3 2>/dev/null | sed 's/package:/  - /')
 
-If a browser refuses to install with "not compatible / ABI", your image is
-x86-only and that build is ARM-only. Build an ARM-capable image:
-  ./scripts/build-image.sh        # adds ndk translation (+ optional Play Store)
+Now, on the phone (scrcpy window):
+  • Firefox is ready — just open it.
+  • For CHROME / any Play Store app: open "Aurora Store" → Anonymous login
+    (no Google account) → search "Chrome" → Install. It pulls the real app
+    from Google's servers. Anti-crash flags are already set, so it won't crash.
 
-Prefer pure F-Droid browsers (no Google at all)? In F-Droid install
-"Fennec" (Firefox) and "Cromite" (Chromium) instead.
+Want a different app? Pass its package id:
+  APPS="com.aurora.store" ./scripts/install-store.sh
 EOF
