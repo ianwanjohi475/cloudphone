@@ -81,13 +81,17 @@ log "starting $PHONE  [$TAG]"
 docker rm -f "$PHONE" >/dev/null 2>&1 || true
 docker run -itd --privileged --name "$PHONE" --hostname "${PHONE#cloudphone-}" \
   --network "$NET" --restart unless-stopped \
+  --dns 8.8.8.8 --dns 8.8.4.4 \
   "${CAM_ARGS[@]}" \
   -v "$DATA":/data \
   -p "${ADB_PORT}:5555" \
   "$TAG" \
   androidboot.redroid_width="$W" androidboot.redroid_height="$H" \
   androidboot.redroid_dpi="$DPI" androidboot.redroid_gpu_mode=guest \
-  androidboot.use_memfd=1 androidboot.redroid_net_ndns=1 "${CAM_CMD[@]}" >/dev/null
+  androidboot.use_memfd=1 \
+  androidboot.redroid_net_ndns=2 \
+  androidboot.redroid_net_dns1=8.8.8.8 androidboot.redroid_net_dns2=8.8.4.4 \
+  "${CAM_CMD[@]}" >/dev/null
 
 # ── 3. adb + wait for boot ───────────────────────────────────────────────────
 if ! command -v adb >/dev/null; then
@@ -122,6 +126,15 @@ for f in chrome-command-line webview-command-line content-shell-command-line; do
 done
 # If the image is rooted (GApps image ships Magisk), belt-and-suspenders.
 "${A[@]}" "su -c 'setprop debug.hwui.renderer skiagl' 2>/dev/null" >/dev/null 2>&1 || true
+
+# DNS — redroid often boots with no resolver ("Unable to resolve host …").
+# Set real DNS so the phone works with the proxy OFF (needed to download apps).
+log "setting DNS (8.8.8.8 / 8.8.4.4)…"
+"${A[@]}" "settings put global private_dns_mode off"                       >/dev/null 2>&1 || true
+"${A[@]}" "setprop net.dns1 8.8.8.8; setprop net.dns2 8.8.4.4"             >/dev/null 2>&1 || true
+"${A[@]}" "su -c 'setprop net.dns1 8.8.8.8; setprop net.dns2 8.8.4.4' 2>/dev/null"                >/dev/null 2>&1 || true
+"${A[@]}" "su -c 'ndc resolver setnetdns 100 localdomain 8.8.8.8 8.8.4.4' 2>/dev/null"            >/dev/null 2>&1 || true
+"${A[@]}" "su -c 'echo -e \"nameserver 8.8.8.8\nnameserver 8.8.4.4\" > /system/etc/resolv.conf' 2>/dev/null" >/dev/null 2>&1 || true
 
 # ── 5. route phone + browser through the proxy ───────────────────────────────
 if [[ -n "$PROXY_IP" ]]; then
