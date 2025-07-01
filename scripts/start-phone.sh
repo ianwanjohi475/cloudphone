@@ -92,14 +92,21 @@ if [[ -n "$BOOTED" ]]; then log "booted ✓"; else
   log "boot not confirmed yet — it may still be coming up. Check: docker logs $PHONE"
 fi
 
-# ── 4. anti-crash settings (no root needed; redroid is debuggable) ───────────
+# ── 4. anti-crash settings — the key to Chrome/WebView/Play-login not dying ──
+# Play sign-in and Chrome both render via a GPU process that segfaults on a
+# host with no GPU. Force everything down the SwiftShader software path.
 log "applying anti-crash settings (Chrome/WebView/GL)…"
-"${A[@]}" setprop debug.hwui.renderer skiagl        >/dev/null 2>&1 || true
-"${A[@]}" setprop debug.stagefright.ccodec 0         >/dev/null 2>&1 || true
-"${A[@]}" setprop debug.sf.nobootanimation 1         >/dev/null 2>&1 || true
-FLAGS='chrome --use-gl=swiftshader --disable-gpu --in-process-gpu --no-sandbox --disable-features=Vulkan'
-"${A[@]}" "echo '$FLAGS' > /data/local/tmp/chrome-command-line"   >/dev/null 2>&1 || true
-"${A[@]}" "echo '$FLAGS' > /data/local/tmp/webview-command-line"  >/dev/null 2>&1 || true
+"${A[@]}" setprop debug.hwui.renderer skiagl         >/dev/null 2>&1 || true
+"${A[@]}" setprop debug.stagefright.ccodec 0          >/dev/null 2>&1 || true
+"${A[@]}" setprop debug.sf.nobootanimation 1          >/dev/null 2>&1 || true
+"${A[@]}" setprop debug.egl.hw 0                      >/dev/null 2>&1 || true
+# First token is argv[0] (ignored by Chromium); the flags do the work.
+FLAGS='_ --use-gl=swiftshader --use-angle=swiftshader --disable-gpu --disable-gpu-compositing --disable-gpu-rasterization --disable-software-rasterizer --in-process-gpu --no-sandbox --disable-features=Vulkan,UseChromeOSDirectVideoDecoder'
+for f in chrome-command-line webview-command-line content-shell-command-line; do
+  "${A[@]}" "echo '$FLAGS' > /data/local/tmp/$f && chmod 644 /data/local/tmp/$f" >/dev/null 2>&1 || true
+done
+# If the image is rooted (GApps image ships Magisk), belt-and-suspenders.
+"${A[@]}" "su -c 'setprop debug.hwui.renderer skiagl' 2>/dev/null" >/dev/null 2>&1 || true
 
 # ── 5. route phone + browser through the proxy ───────────────────────────────
 if [[ -n "$PROXY_IP" ]]; then
