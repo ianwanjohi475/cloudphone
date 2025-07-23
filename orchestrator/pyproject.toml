@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "cloudphone"
 version = "0.1.0"
 description = "Self-hosted cloud-phone farm built on Redroid + ws-scrcpy"
-readme = "../README.md"
+readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
 dependencies = [
