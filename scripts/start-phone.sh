@@ -66,6 +66,20 @@ fi
 # Optional camera: CAMERA=1 maps the host virtual webcam (/dev/video10, created
 # by setup-host.sh) into the phone and enables redroid's v4l2 camera. Feed it
 # with: ./scripts/camera-setup.sh image ./face.jpg   (in another terminal)
+# GPU mode: guest = software (safe, but 3D games crash); host = passthrough
+# (needs /dev/dri — the only way heavy games/3D apps can run).
+GPU_MODE="${GPU:-guest}"
+GPU_ARGS=()
+if [[ "$GPU_MODE" == "host" ]]; then
+  if [[ -e /dev/dri/renderD128 ]]; then
+    GPU_ARGS=(--device /dev/dri:/dev/dri --group-add video)
+    log "GPU passthrough ON (/dev/dri) — required for games; if apps crash worse, use guest"
+  else
+    log "GPU=host requested but /dev/dri missing → falling back to software (guest)"
+    GPU_MODE="guest"
+  fi
+fi
+
 CAM_ARGS=(); CAM_CMD=()
 if [[ "${CAMERA:-}" == "1" ]]; then
   if [[ -e /dev/video10 ]]; then
@@ -82,12 +96,13 @@ docker rm -f "$PHONE" >/dev/null 2>&1 || true
 docker run -itd --privileged --name "$PHONE" --hostname "${PHONE#cloudphone-}" \
   --network "$NET" --restart unless-stopped \
   --dns 8.8.8.8 --dns 8.8.4.4 \
+  "${GPU_ARGS[@]}" \
   "${CAM_ARGS[@]}" \
   -v "$DATA":/data \
   -p "${ADB_PORT}:5555" \
   "$TAG" \
   androidboot.redroid_width="$W" androidboot.redroid_height="$H" \
-  androidboot.redroid_dpi="$DPI" androidboot.redroid_gpu_mode=guest \
+  androidboot.redroid_dpi="$DPI" androidboot.redroid_gpu_mode="$GPU_MODE" \
   androidboot.use_memfd=1 \
   androidboot.redroid_net_ndns=2 \
   androidboot.redroid_net_dns1=8.8.8.8 androidboot.redroid_net_dns2=8.8.4.4 \
