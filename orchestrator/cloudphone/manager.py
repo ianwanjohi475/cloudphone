@@ -140,6 +140,7 @@ class PhoneManager:
         datadir = f"emu-{index}"
         data_dir = self.s.data_root / datadir
         (data_dir / "camera" / "uploads").mkdir(parents=True, exist_ok=True)
+        _share_adb_key(data_dir)
 
         devices = ["/dev/kvm:/dev/kvm:rwm"]
         video = f"/dev/video{self.s.camera_video_base + index}"
@@ -282,6 +283,30 @@ class PhoneManager:
             data_dir=labels.get("io.cloudphone.datadir") or f"redroid-{idx}",
             labels=dict(labels),
         )
+
+
+def _share_adb_key(data_dir) -> None:
+    """Give a new real phone this process's adb key pair so our adb is trusted.
+
+    Play Store images reject adb clients whose key the emulator was not given
+    ("device unauthorized"); the emulator reads it from <data>/.android/."""
+    import shutil
+    import subprocess
+    from pathlib import Path
+
+    home = Path(os.environ.get("ANDROID_USER_HOME") or Path.home() / ".android")
+    key = home / "adbkey"
+    if not key.exists() and shutil.which("adb"):
+        home.mkdir(parents=True, exist_ok=True)
+        subprocess.run(["adb", "keygen", str(key)], capture_output=True, check=False)
+    if not key.exists():
+        return
+    dest = Path(data_dir) / ".android"
+    dest.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(key, dest / "adbkey")
+    pub = key.with_suffix(".pub")
+    if pub.exists():
+        shutil.copyfile(pub, dest / "adbkey.pub")
 
 
 def _host_dev_exists(node: str) -> bool:

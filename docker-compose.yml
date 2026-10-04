@@ -88,6 +88,9 @@ services:
       # Devices the entrypoint auto-`adb connect`s on boot (comma separated).
       # Phones named cloudphone-emu-N / cloudphone-redroid-N are found automatically.
       AUTO_CONNECT: "redroid-0:5555"
+    volumes:
+      # adb keys of real phones (ws-scrcpy needs them to get past "unauthorized")
+      - ${DATA_ROOT:-./data}:/phones:ro
     ports:
       - "${SCRCPY_PORT:-8000}:8000"
 

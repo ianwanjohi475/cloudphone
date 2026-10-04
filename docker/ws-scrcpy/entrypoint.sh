@@ -4,6 +4,10 @@
 # way via `adb connect`, so they appear in the device list automatically.
 set -euo pipefail
 
+# Real phones only accept adb keys they were given; reuse theirs (see
+# docker/emulator/entrypoint.sh). /phones is DATA_ROOT, mounted read-only.
+keys="$(find /phones -maxdepth 3 -path '*/.android/adbkey' 2>/dev/null | paste -sd: -)"
+[[ -n "$keys" ]] && export ADB_VENDOR_KEYS="$keys"
 adb start-server
 
 connect_loop() {

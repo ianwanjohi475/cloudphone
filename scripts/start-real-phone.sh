@@ -45,6 +45,15 @@ fi
 docker network inspect "$NET" >/dev/null 2>&1 || docker network create "$NET" >/dev/null
 mkdir -p "$DATA/camera/uploads"
 
+# Let this PC's adb in: the phone trusts the key pair in $DATA/.android
+# (Play Store images reject unknown adb keys as "unauthorized").
+[[ -f "$HOME/.android/adbkey" ]] || { mkdir -p "$HOME/.android"; adb keygen "$HOME/.android/adbkey" >/dev/null 2>&1; }
+[[ -f "$HOME/.android/adbkey.pub" ]] || adb pubkey "$HOME/.android/adbkey" > "$HOME/.android/adbkey.pub"
+sudo mkdir -p "$DATA/.android"
+sudo cp "$HOME/.android/adbkey" "$HOME/.android/adbkey.pub" "$DATA/.android/"
+# A container killed mid-boot leaves locks that stop the next boot.
+sudo find "$DATA/avd" -maxdepth 2 -name '*.lock' -exec rm -rf {} + 2>/dev/null || true
+
 DEV_ARGS=(--device /dev/kvm)
 [[ -e "$VIDEO" ]] && DEV_ARGS+=(--device "$VIDEO:/dev/video0")
 

@@ -19,6 +19,18 @@ export ANDROID_AVD_HOME=/data/avd
 export ANDROID_EMULATOR_HOME=/data/.android
 mkdir -p "$ANDROID_AVD_HOME" "$ANDROID_EMULATOR_HOME" /data/camera/uploads
 
+# adb keys. Play Store images only let in adb clients whose key the emulator
+# was told about (the public key in $ANDROID_EMULATOR_HOME/adbkey.pub); any
+# other client gets "device unauthorized". The start script / dashboard drop
+# their own key pair here so they can connect from outside; if none was
+# provided, make one. The adb inside this container uses the same pair.
+if [[ ! -f "$ANDROID_EMULATOR_HOME/adbkey" ]]; then
+  adb keygen "$ANDROID_EMULATOR_HOME/adbkey" >/dev/null 2>&1
+fi
+[[ -f "$ANDROID_EMULATOR_HOME/adbkey.pub" ]] || adb pubkey "$ANDROID_EMULATOR_HOME/adbkey" > "$ANDROID_EMULATOR_HOME/adbkey.pub"
+rm -rf /root/.android && ln -s "$ANDROID_EMULATOR_HOME" /root/.android
+export ADB_VENDOR_KEYS="$ANDROID_EMULATOR_HOME/adbkey"
+
 AVD=phone
 SYSIMG="system-images;android-${API};${IMAGE_TAG};${ABI}"
 if [[ ! -f "$ANDROID_AVD_HOME/${AVD}.ini" ]]; then
