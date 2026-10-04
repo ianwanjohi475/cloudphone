@@ -19,6 +19,18 @@ export ANDROID_AVD_HOME=/data/avd
 export ANDROID_EMULATOR_HOME=/data/.android
 mkdir -p "$ANDROID_AVD_HOME" "$ANDROID_EMULATOR_HOME" /data/camera/uploads
 
+# adb keys. Play Store images only let in adb clients whose key the emulator
+# was told about (the public key in $ANDROID_EMULATOR_HOME/adbkey.pub); any
+# other client gets "device unauthorized". The start script / dashboard drop
+# their own key pair here so they can connect from outside; if none was
+# provided, make one. The adb inside this container uses the same pair.
+if [[ ! -f "$ANDROID_EMULATOR_HOME/adbkey" ]]; then
+  adb keygen "$ANDROID_EMULATOR_HOME/adbkey" >/dev/null 2>&1
+fi
+[[ -f "$ANDROID_EMULATOR_HOME/adbkey.pub" ]] || adb pubkey "$ANDROID_EMULATOR_HOME/adbkey" > "$ANDROID_EMULATOR_HOME/adbkey.pub"
+rm -rf /root/.android && ln -s "$ANDROID_EMULATOR_HOME" /root/.android
+export ADB_VENDOR_KEYS="$ANDROID_EMULATOR_HOME/adbkey"
+
 AVD=phone
 SYSIMG="system-images;android-${API};${IMAGE_TAG};${ABI}"
 if [[ ! -f "$ANDROID_AVD_HOME/${AVD}.ini" ]]; then
@@ -63,7 +75,12 @@ setcfg hw.camera.back "$CAM"
 setcfg hw.camera.front "$CAM"
 
 # Expose adb: the emulator only listens on 127.0.0.1:5557 (console 5556).
-socat TCP-LISTEN:5555,fork,reuseaddr TCP:127.0.0.1:5557 &
+# Listen on the container's network address only: on 127.0.0.1:5555 the
+# emulator's own adb server would find the forward while scanning for
+# emulators and attach a second time ("emulator-5554"), competing with
+# outside clients for the guest's adb connection.
+IP="$(hostname -i | awk '{print $1}')"
+socat "TCP-LISTEN:5555,fork,reuseaddr,bind=${IP}" TCP:127.0.0.1:5557 &
 
 adb start-server >/dev/null 2>&1 || true
 (
@@ -76,6 +93,11 @@ adb start-server >/dev/null 2>&1 || true
 ) &
 
 EXTRA=()
+# Play Store images ask for adb authorization on screen, and this phone has no
+# screen to tap "Allow" on. Accept our injected key without the prompt.
+if emulator -help 2>/dev/null | grep -q -- '-skip-adb-auth'; then
+  EXTRA+=(-skip-adb-auth)
+fi
 if [[ -n "${PROXY:-}" ]]; then
   if [[ "$PROXY" == http://* ]]; then
     EXTRA+=(-http-proxy "$PROXY")
