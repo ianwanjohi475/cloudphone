@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 
 from .adb import Adb
 
@@ -15,25 +14,10 @@ CHROME_FLAGS = (
 
 
 def install_apk(adb: Adb, apk: str) -> str:
-    """Install a local .apk (or a directory of split apks)."""
-    p = Path(apk)
-    if not p.exists():
-        raise FileNotFoundError(apk)
-    if p.is_dir():
-        splits = sorted(str(x) for x in p.glob("*.apk"))
-        if not splits:
-            raise FileNotFoundError(f"no .apk files in {apk}")
-        # install-multiple for split APKs (App Bundles).
-        import shutil
-        import subprocess
+    """Install a local .apk, split bundle (.xapk/.apks/.apkm/.zip) or folder of APKs."""
+    from .packages import install_any
 
-        adb_bin = shutil.which("adb")
-        cmd = [adb_bin, "-s", adb.address, "install-multiple", "-r", *splits]
-        out = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
-        if out.returncode != 0:
-            raise RuntimeError(out.stderr.strip())
-        return out.stdout.strip()
-    return adb.install(apk)
+    return install_any(adb, apk).output
 
 
 def harden_webview(adb: Adb) -> str:

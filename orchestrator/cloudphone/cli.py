@@ -2,9 +2,12 @@
 
 cloudphone doctor
 cloudphone create --count 3 --profile pixel_7
+cloudphone create --engine emulator          # real phone: Play Store, ARM apps, camera upload
 cloudphone ls
 cloudphone provision redroid-0 --proxy socks5://user:pass@host:1080
-cloudphone install redroid-0 ./app.apk
+cloudphone install cloudphone-emu-0 ./game.xapk   # .apk .xapk .apks .apkm .zip or a folder
+cloudphone apps cloudphone-emu-0
+cloudphone camera cloudphone-emu-0 ./selfie.jpg   # or a video; "pattern" to reset
 cloudphone gps redroid-0 --lat 40.7128 --lon -74.0060
 cloudphone proxy redroid-0 --url http://1.2.3.4:8080 --mode http
 cloudphone health
@@ -19,8 +22,9 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from . import apps as apps_mod
+from . import camera as camera_mod
 from . import gps as gps_mod
+from . import packages
 from . import proxy as proxy_mod
 from .adb import Adb
 from .config import SETTINGS
@@ -51,10 +55,17 @@ def create(
     count: int = typer.Option(1, help="How many phones to create."),
     profile: str = typer.Option("pixel_7", help=f"Device profile: {', '.join(DEVICE_PROFILES)}"),
     proxy: Optional[str] = typer.Option(None, help="Default proxy url for these phones."),
+    engine: str = typer.Option(
+        "redroid",
+        help="redroid (light, many per host) or emulator (real phone: Play Store, "
+        "ARM apps, uploadable camera; needs /dev/kvm).",
+    ),
 ):
     """Create one or more phones."""
     mgr = _manager()
-    phones = mgr.create_many(count, profile=profile, proxy=proxy)
+    if engine == "emulator" and profile == "pixel_7":
+        profile = "pixel_6"  # avdmanager hardware profile name
+    phones = mgr.create_many(count, profile=profile, proxy=proxy, engine=engine)
     for p in phones:
         console.print(
             f"[green]created[/] {p.name}  adb=localhost:{p.adb_port}  profile={p.profile}"
@@ -66,10 +77,16 @@ def create(
 def list_phones():
     """List phones."""
     mgr = _manager()
-    table = Table("name", "status", "index", "adb", "profile", "proxy")
+    table = Table("name", "kind", "status", "index", "adb", "profile", "proxy")
     for p in mgr.list():
         table.add_row(
-            p.name, p.status, str(p.index), f"localhost:{p.adb_port}", p.profile, p.proxy or "-"
+            p.name,
+            p.engine,
+            p.status,
+            str(p.index),
+            f"localhost:{p.adb_port}",
+            p.profile,
+            p.proxy or "-",
         )
     console.print(table)
 
@@ -134,13 +151,71 @@ def provision(
         console.print(f"  [green]✓[/] {s}" if res.booted else f"  [red]✗[/] {s}")
 
 
-@app.command()
-def install(name: str, apk: str = typer.Argument(..., help="Path to .apk or split-apk dir.")):
-    """Install an app from a local apk."""
-    phone = _manager().get(name)
-    adb = Adb(phone.adb_address)
+def _adb(name: str) -> Adb:
+    from .manager import adb_address
+
+    adb = Adb(adb_address(_manager().get(name)), timeout=60)
     adb.connect()
-    console.print(apps_mod.install_apk(adb, apk))
+    return adb
+
+
+@app.command()
+def install(
+    name: str,
+    app_file: str = typer.Argument(
+        ..., help="An .apk, .xapk, .apks, .apkm, .zip bundle, or a folder of split APKs."
+    ),
+    replace: bool = typer.Option(
+        False, help="Uninstall a copy signed by someone else first if the install clashes."
+    ),
+):
+    """Install any app file (split APKs and OBB game data included)."""
+    try:
+        res = packages.install_any(_adb(name), app_file, replace_incompatible=replace)
+    except packages.InstallError as e:
+        console.print(f"[red]install failed[/] {e.code}\n{e.hint}")
+        raise typer.Exit(1)
+    console.print(f"[green]installed[/] {res.package or app_file}  ({len(res.apks)} apk)")
+    for o in res.obb:
+        console.print(f"  data → {o}")
+
+
+@app.command("apps")
+def list_apps(name: str):
+    """List the apps installed on a phone."""
+    table = Table("package", "version")
+    for a in packages.app_list(_adb(name)):
+        table.add_row(a["package"], a["version"])
+    console.print(table)
+
+
+@app.command()
+def uninstall(name: str, package: str):
+    """Remove an app."""
+    console.print(packages.uninstall(_adb(name), package))
+
+
+@app.command()
+def camera(
+    name: str,
+    media: str = typer.Argument(..., help="Photo or video file, or 'pattern' to reset."),
+):
+    """Make every app's camera on this phone show a photo or video."""
+    from pathlib import Path
+
+    mgr = _manager()
+    phone = mgr.get(name)
+    if phone.engine != "emulator":
+        console.print(
+            "[red]camera upload needs a real phone:[/] cloudphone create --engine emulator"
+        )
+        raise typer.Exit(1)
+    data = mgr.data_path(phone)
+    if media == "pattern":
+        st = camera_mod.set_pattern(data)
+    else:
+        st = camera_mod.set_media(data, Path(media), Path(media).name)
+    console.print(f"[green]camera now shows[/] {st.kind} {st.source}")
 
 
 @app.command()

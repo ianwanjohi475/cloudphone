@@ -16,6 +16,13 @@ connect_loop() {
       [[ -z "$t" ]] && continue
       adb connect "$t" >/dev/null 2>&1 || true
     done
+    # Phones created later by the dashboard/CLI: Docker DNS resolves their
+    # container names, so probe the first few of each kind.
+    for i in $(seq 0 "${SCAN_MAX:-9}"); do
+      for h in "cloudphone-emu-$i" "cloudphone-redroid-$i"; do
+        getent hosts "$h" >/dev/null 2>&1 && adb connect "$h:5555" >/dev/null 2>&1
+      done
+    done
     sleep 15
   done
 }

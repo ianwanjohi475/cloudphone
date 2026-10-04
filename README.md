@@ -18,12 +18,13 @@ with a Python orchestrator, a web dashboard, and a full automation CLI.
 | **Browser control** | ws-scrcpy live screen + touch/keyboard, embedded in the dashboard |
 | **Multi-phone** | Create/stop/destroy N phones; each isolated with its own data + adb port |
 | **Anti-crash** | Stability prop layer + WebView/Chrome hardening that stops the classic Chrome/Persona/GL startup crashes |
-| **App install** | Single APK, split-APK bundles, and a Play Store (GApps) path |
+| **Real phone** | Android Emulator with the certified **Google Play Store** and ARM app translation, so any app installs (needs `/dev/kvm`) |
+| **App install** | Any `.apk`, `.xapk`, `.apks`, `.apkm` or `.zip` bundle, with OBB game data, from the dashboard or CLI; Play Store on real phones |
 | **Fingerprints** | Deterministic, internally-consistent device identities (serial, android_id, IMEI, MACs, full build fingerprint) per phone |
 | **Magisk + resetprop** | Root + persistent prop spoofing automation |
 | **Proxy engine** | Per-phone `http`, `socks5`, `transparent` (iptables+redsocks), and `browser-only` modes |
 | **GPS spoofing** | Fixed location + route walking via mock providers |
-| **Camera / media** | v4l2loopback virtual camera fed by image/video/RTSP (getUserMedia & upload flows) |
+| **Camera upload** | On real phones, upload a photo or video and every app that opens the camera (front or back) sees it |
 | **Sensors & audio** | Sensor injection + virtual audio devices |
 | **GPU** | Software (SwiftShader) by default; host GPU passthrough when `/dev/dri` is available |
 | **Ops** | Health monitoring, persistent storage, web dashboard, automation CLI |
@@ -36,7 +37,27 @@ solvable in software (hardware-backed attestation, ML liveness).
 
 ---
 
-## Quick start — native scrcpy (recommended)
+## Quick start — real phone (installs any app, uploadable camera)
+
+Needs a host with hardware virtualization (`/dev/kvm`: most PCs with VT-x/AMD-V
+on, or a KVM-capable VPS).
+
+```bash
+sudo ./scripts/setup-host.sh          # once: kernel modules incl. the virtual cameras
+make real-phone                       # builds the image the first time, boots, opens scrcpy
+```
+
+Then:
+
+- **Install apps:** sign in to the Play Store on the phone, or
+  `./scripts/install-apk.sh cloudphone-emu-0 ./game.xapk` (any `.apk/.xapk/.apks/.apkm`),
+  or the **Apps & camera** button in the dashboard.
+- **Camera:** `./scripts/camera.sh ./selfie.jpg` (or `.mp4`). Every app that
+  opens the camera sees that photo/video until you change it; `pattern` resets.
+  The dashboard has the same upload.
+- adb is on `localhost:6555` (`6556`, … for more phones: `IDX=1 make real-phone`).
+
+## Quick start — native scrcpy (Redroid, lighter)
 
 One self-contained script: starts a phone with the correct image, applies the
 anti-crash settings, optionally routes it through a proxy, and hands you the

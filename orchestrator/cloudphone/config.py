@@ -40,17 +40,37 @@ class Settings:
 
     # Storage
     data_root: Path = field(default_factory=lambda: Path(_env("DATA_ROOT", "./data")).resolve())
+    # The same folder as the docker host sees it (bind mounts are resolved by
+    # the daemon). Differs from data_root only when running in the dashboard
+    # container.
+    host_data_root: Path = field(
+        default_factory=lambda: Path(_env("HOST_DATA_ROOT", _env("DATA_ROOT", "./data"))).resolve()
+    )
 
     # Proxy default
     default_proxy: str = field(default_factory=lambda: _env("DEFAULT_PROXY", ""))
 
+    # Android Emulator phones (real Play Store, ARM apps, uploadable camera)
+    emulator_image: str = field(
+        default_factory=lambda: _env("EMULATOR_IMAGE", "cloudphone/emulator:latest")
+    )
+    emulator_ram_mb: int = field(default_factory=lambda: int(_env("EMULATOR_RAM_MB", "4096")))
+    emulator_cores: int = field(default_factory=lambda: int(_env("EMULATOR_CORES", "4")))
+    emulator_adb_base_port: int = field(
+        default_factory=lambda: int(_env("EMULATOR_ADB_BASE_PORT", "6555"))
+    )
+    # v4l2loopback device N+index feeds phone N's camera (see setup-host.sh)
+    camera_video_base: int = field(default_factory=lambda: int(_env("CAMERA_VIDEO_BASE", "10")))
+
     # Labels used to find our containers
     label_key: str = "io.cloudphone.managed"
     name_prefix: str = "cloudphone-redroid-"
+    emulator_prefix: str = "cloudphone-emu-"
 
     def as_dict(self) -> dict:
         d = asdict(self)
         d["data_root"] = str(self.data_root)
+        d["host_data_root"] = str(self.host_data_root)
         return d
 
 

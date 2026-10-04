@@ -4,11 +4,9 @@
 # Feeds an image, video, or a getUserMedia/RTSP stream into a phone's camera so
 # apps that capture photos/video (and liveness-style flows) see synthetic media.
 #
-# Two layers:
-#   host  : v4l2loopback creates /dev/video10; ffmpeg pumps media into it.
-#   phone : redroid is started with the v4l2 node mapped to its camera HAL
-#           (redroid.virtual_camera). This script wires the host side and
-#           tells you the compose override to map the device.
+# Low-level: pumps media straight into a host v4l2loopback device. For the
+# real phone (./scripts/start-real-phone.sh) use ./scripts/camera.sh instead;
+# its container already feeds the camera and only needs the file.
 #
 #   ./scripts/camera-setup.sh image  ./face.jpg
 #   ./scripts/camera-setup.sh video  ./clip.mp4
