@@ -21,11 +21,35 @@ isolated (own `/data`, adb port, fingerprint, proxy). Limited by host RAM/CPU.
 software GL (`guest`) which needs no GPU and is the most crash-resistant. See
 [troubleshooting.md](troubleshooting.md).
 
-## Camera virtualization / getUserMedia / media upload
-`scripts/camera-setup.sh image|video|stream <src>` pumps media into
-`/dev/video10` (v4l2loopback). Map that node into a phone and apps' camera +
-`getUserMedia` see the synthetic feed — the media-upload pipeline for
-photo/video capture flows.
+## Real phones (Android Emulator engine)
+`docker/emulator` packages the official Android Emulator with the Android 13
+**Google Play** system image. Compared with Redroid it has the certified Play
+Store and translates ARM-only apps, so anything from the Play Store or an APK
+site installs. One container per phone (`cloudphone-emu-N`, adb on
+`6555 + N`), created by `make real-phone`, `cloudphone create --engine emulator`
+or the dashboard's "Real phone" option. Needs `/dev/kvm`.
+
+## Installing any app file
+`cloudphone/packages.py` installs `.apk`, `.xapk` (APKPure), `.apks`
+(SAI/bundletool), `.apkm` (APKMirror), `.zip` bundles and folders of splits. It
+keeps only the CPU splits the phone runs, pushes OBB game data to
+`/sdcard/Android/obb/<pkg>/`, grants runtime permissions, retries test-only and
+old-target apps, can replace a copy signed by someone else, and turns adb error
+codes into plain advice. Used by the dashboard upload, `cloudphone install` and
+the API (`POST /api/phones/{name}/install`).
+
+## Camera upload (photo or video as the phone's camera)
+Each real phone gets its own v4l2loopback device (`/dev/video10 + N`, created by
+`setup-host.sh`) mapped in as the emulator's `webcam0`, used for both the back
+and front camera. Inside the container `camera-feed.sh` keeps ffmpeg playing
+whatever `/data/camera/source` names: a looping photo, a looping video, or a
+test pattern. Uploading from the dashboard, `cloudphone camera`,
+`scripts/camera.sh` or `POST /api/phones/{name}/camera` just copies the file in
+and rewrites that line, so the switch is live and any app that opens the camera
+sees it.
+
+Stock Redroid images have no camera HAL, so Redroid phones show no camera;
+`scripts/camera-setup.sh` remains for custom Redroid builds that have one.
 
 ## WebGL renderer improvements
 The stability layer pins HWUI to `skiagl` and routes WebGL through SwiftShader

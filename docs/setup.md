@@ -33,8 +33,21 @@ On kernels without binder at all (rare on Ubuntu), use the
 
 ```bash
 sudo apt-get install -y v4l2loopback-dkms ffmpeg
-sudo ./scripts/setup-host.sh        # creates /dev/video10
+sudo ./scripts/setup-host.sh        # creates /dev/video10-13, one camera per real phone
 ```
+
+### Real phones need KVM
+
+The real-phone engine (Play Store, ARM apps, camera upload) is the Android
+Emulator, which needs hardware virtualization:
+
+```bash
+ls -l /dev/kvm                      # must exist
+sudo usermod -aG kvm "$USER"        # then log out and back in
+```
+
+No `/dev/kvm`? Turn on VT-x/AMD-V (Intel VT / SVM) in the BIOS. In a VM or
+VPS, it needs nested virtualization; many cheap VPS plans do not offer it.
 
 Verify everything:
 

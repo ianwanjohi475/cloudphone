@@ -36,9 +36,10 @@ else
   warn "ashmem_linux not loadable — fine on kernels with memfd (use_memfd=1)."
 fi
 
-# 3. v4l2loopback (virtual camera for getUserMedia / media-upload pipeline) ---
-if modprobe v4l2loopback devices=1 video_nr=10 card_label="cloudphone-cam" exclusive_caps=1 2>/dev/null; then
-  log "v4l2loopback ready at /dev/video10 (virtual camera)."
+# 3. v4l2loopback: one virtual webcam per real phone (/dev/video10 -> emu-0,
+#    /dev/video11 -> emu-1, ...). Uploaded photos/videos are played into these.
+if modprobe v4l2loopback devices=4 video_nr=10,11,12,13 card_label="cloudphone-cam" exclusive_caps=1 2>/dev/null; then
+  log "v4l2loopback ready at /dev/video10-13 (phone cameras)."
 else
   warn "v4l2loopback not loaded — camera virtualization disabled."
   warn "Install:  sudo apt-get install -y v4l2loopback-dkms"
@@ -52,7 +53,7 @@ ashmem_linux
 v4l2loopback
 EOF
 echo 'options binder_linux devices=binder,hwbinder,vndbinder' > /etc/modprobe.d/cloudphone-binder.conf
-echo 'options v4l2loopback devices=1 video_nr=10 card_label=cloudphone-cam exclusive_caps=1' > /etc/modprobe.d/cloudphone-v4l2.conf
+echo 'options v4l2loopback devices=4 video_nr=10,11,12,13 card_label=cloudphone-cam exclusive_caps=1' > /etc/modprobe.d/cloudphone-v4l2.conf
 log "Persisted module config to $MODCONF"
 
 log "Host setup complete. Verify with: ./scripts/doctor.sh"

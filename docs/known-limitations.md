@@ -20,11 +20,19 @@ attestation chain. Magisk/resetprop/fingerprint spoofing only influence
 - **Affected:** banking apps, some wallets, DRM L1 video, a few games with
   strict integrity gates. They will detect the environment or refuse to run.
 
+## Real phones and Play Integrity
+
+The real-phone engine uses Google's own Play-certified emulator image, so the
+Play Store, sign-in and most apps work. Apps that require Play Integrity
+`DEVICE`/`STRONG` verdicts still see an emulator and may refuse to run, the
+same as on Redroid. ARM translation covers almost all apps; a few games with
+heavy native anti-cheat still crash.
+
 ## ML / camera liveness — NOT defeatable with a static feed
 
 **Face/anti-spoof liveness, "blink/turn your head", depth/IR checks.**
 
-The virtual camera (`v4l2loopback`) injects a video stream, which beats *simple*
+The uploaded camera feed (photo or video through `v4l2loopback`) injects a video stream, which beats *simple*
 camera presence checks and basic upload flows. It does **not** beat modern
 active liveness: those demand real-time responses to randomized prompts, and
 many use depth/IR sensors a virtual camera can't emulate. A pre-recorded clip

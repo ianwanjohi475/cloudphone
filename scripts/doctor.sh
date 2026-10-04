@@ -31,9 +31,9 @@ else
   warn "ashmem missing — OK if kernel supports memfd (most >=5.x do)"
 fi
 if [[ -e /dev/video10 ]]; then
-  ok "virtual camera /dev/video10 present"
+  ok "virtual camera /dev/video10 present (real-phone camera upload works)"
 else
-  warn "v4l2loopback camera not present — camera virtualization off"
+  warn "v4l2loopback camera not present: real phones fall back to an emulated camera"
 fi
 
 echo "[gpu]"
@@ -44,7 +44,11 @@ else
 fi
 
 echo "[kvm]"
-[[ -e /dev/kvm ]] && ok "/dev/kvm present" || warn "no /dev/kvm (only needed for full AVD fallback, not redroid)"
+if [[ -e /dev/kvm ]]; then
+  ok "/dev/kvm present: real phones (Play Store, ARM apps, camera upload) can run"
+else
+  warn "no /dev/kvm: only redroid phones; real phones need VT-x/AMD-V or a KVM-capable VPS"
+fi
 
 echo "[arch]"
 ok "host arch: $(uname -m)"

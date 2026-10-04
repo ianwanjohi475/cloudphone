@@ -63,9 +63,11 @@ if [[ -n "$PROXY" ]]; then
 fi
 
 # ── 2. redroid phone (correct tag, software GPU = crash-resistant) ───────────
-# Optional camera: CAMERA=1 maps the host virtual webcam (/dev/video10, created
-# by setup-host.sh) into the phone and enables redroid's v4l2 camera. Feed it
-# with: ./scripts/camera-setup.sh image ./face.jpg   (in another terminal)
+# Camera: stock redroid images ship NO camera HAL, so apps see no camera at all.
+# For a phone whose camera shows an uploaded photo/video use the real phone:
+#   ./scripts/start-real-phone.sh   then   ./scripts/camera.sh ./face.jpg
+# CAMERA=1 below only maps /dev/video10 for custom redroid builds that include
+# a v4l2 camera HAL.
 # GPU mode: guest = software (safe, but 3D games crash); host = passthrough
 # (needs /dev/dri — the only way heavy games/3D apps can run).
 GPU_MODE="${GPU:-guest}"
@@ -85,7 +87,8 @@ if [[ "${CAMERA:-}" == "1" ]]; then
   if [[ -e /dev/video10 ]]; then
     CAM_ARGS=(--device /dev/video10:/dev/video0)
     CAM_CMD=(androidboot.redroid_camera_0=v4l2:/dev/video0)
-    log "camera enabled: mapping /dev/video10 -> phone camera (experimental)"
+    log "camera: mapped /dev/video10 (works only on redroid builds with a v4l2 camera HAL;"
+    log "        for uploads on any app use ./scripts/start-real-phone.sh)"
   else
     log "CAMERA=1 but /dev/video10 missing — run: sudo ./scripts/setup-host.sh"
   fi

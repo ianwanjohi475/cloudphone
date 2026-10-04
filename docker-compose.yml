@@ -45,6 +45,38 @@ services:
     # devices:
     #   - ${REDROID_GPU_NODE:-/dev/dri/renderD128}:${REDROID_GPU_NODE:-/dev/dri/renderD128}
 
+  # Real phone: Android Emulator with Google Play, ARM app translation and a
+  # camera fed from uploaded photos/videos. Needs /dev/kvm. Start with:
+  #     docker compose --profile real up -d
+  # or create more from the dashboard ("Real phone").
+  emu-0:
+    profiles: [real]
+    build: ./docker/emulator
+    image: ${EMULATOR_IMAGE:-cloudphone/emulator:latest}
+    container_name: cloudphone-emu-0
+    hostname: emu-0
+    restart: unless-stopped
+    networks: [cloudphone]
+    devices:
+      - /dev/kvm
+      - ${CAMERA_DEVICE:-/dev/video10}:/dev/video0
+    ports:
+      - "${EMULATOR_ADB_BASE_PORT:-6555}:5555"
+    volumes:
+      - ${DATA_ROOT:-./data}/emu-0:/data
+    environment:
+      RAM_MB: ${EMULATOR_RAM_MB:-4096}
+      CORES: ${EMULATOR_CORES:-4}
+      PROXY: ${EMULATOR_PROXY:-}
+    labels:
+      io.cloudphone.managed: "true"
+      io.cloudphone.index: "0"
+      io.cloudphone.profile: pixel_6
+      io.cloudphone.engine: emulator
+      io.cloudphone.adb: cloudphone-emu-0:5555
+      io.cloudphone.adbport: "${EMULATOR_ADB_BASE_PORT:-6555}"
+      io.cloudphone.datadir: emu-0
+
   ws-scrcpy:
     build: ./docker/ws-scrcpy
     image: cloudphone/ws-scrcpy:latest
@@ -54,6 +86,7 @@ services:
     depends_on: [redroid-0]
     environment:
       # Devices the entrypoint auto-`adb connect`s on boot (comma separated).
+      # Phones named cloudphone-emu-N / cloudphone-redroid-N are found automatically.
       AUTO_CONNECT: "redroid-0:5555"
     ports:
       - "${SCRCPY_PORT:-8000}:8000"
@@ -69,7 +102,13 @@ services:
       DASHBOARD_SECRET: ${DASHBOARD_SECRET:-change-me-please}
       SCRCPY_PORT: ${SCRCPY_PORT:-8000}
       DATA_ROOT: /data
+      # Where that folder lives on the host, for the phones' bind mounts.
+      HOST_DATA_ROOT: ${HOST_DATA_ROOT:-${PWD}/data}
+      # The host's /dev, read-only, so the dashboard can see /dev/kvm and the
+      # virtual cameras before it creates real phones.
+      HOST_DEV: /hostdev
     volumes:
+      - /dev:/hostdev:ro
       # Lets the dashboard/orchestrator manage sibling phone containers.
       - /var/run/docker.sock:/var/run/docker.sock
       - ${DATA_ROOT:-./data}:/data

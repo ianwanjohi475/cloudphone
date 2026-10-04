@@ -32,7 +32,7 @@ jobs:
       - name: shellcheck
         run: |
           sudo apt-get update && sudo apt-get install -y shellcheck
-          shellcheck -S warning scripts/*.sh docker/ws-scrcpy/entrypoint.sh
+          shellcheck -S warning scripts/*.sh docker/ws-scrcpy/entrypoint.sh docker/emulator/*.sh
 
   compose:
     runs-on: ubuntu-latest

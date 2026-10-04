@@ -10,6 +10,10 @@
   <header>
     <h1>☁️ cloudphone</h1>
     <div class="actions">
+      <select id="engine" title="What kind of phone">
+        <option value="emulator">Real phone (Play Store, ARM apps, camera upload)</option>
+        <option value="redroid">Light phone (Redroid, no camera)</option>
+      </select>
       <select id="profile">
         <option value="pixel_7">Pixel 7</option>
         <option value="pixel_6">Pixel 6</option>
@@ -42,6 +46,42 @@
     </div>
     <iframe id="scrcpy" src="about:blank"></iframe>
   </div>
+
+  <aside id="panel" class="hidden" aria-label="Phone tools">
+    <div class="panel-bar">
+      <b id="panel-title"></b>
+      <button id="panel-close" class="ghost" aria-label="Close">✕</button>
+    </div>
+
+    <section>
+      <h2>Install an app</h2>
+      <p class="muted">Any .apk, .xapk, .apks, .apkm or .zip bundle. Split APKs and OBB game data are handled.</p>
+      <label id="drop" class="drop">
+        <input id="apk" type="file" accept=".apk,.xapk,.apks,.apkm,.zip" hidden />
+        <span>Drop an app file here or <u>choose one</u></span>
+      </label>
+      <label class="check"><input id="replace" type="checkbox" /> Replace an existing copy signed by someone else</label>
+      <div id="install-status" class="status"></div>
+      <p class="muted small">Or open Play Store on the phone and install from there.</p>
+    </section>
+
+    <section>
+      <h2>Installed apps <button id="apps-refresh" class="ghost small">⟳</button></h2>
+      <ul id="apps" class="apps"><li class="muted">…</li></ul>
+    </section>
+
+    <section id="camera-section">
+      <h2>Camera</h2>
+      <p class="muted">Upload a photo or video. Whenever any app on this phone opens the camera (front or back), it sees this, looping.</p>
+      <div id="cam-now" class="status"></div>
+      <label id="cam-drop" class="drop">
+        <input id="cam-file" type="file" accept="image/*,video/*" hidden />
+        <span>Drop a photo or video or <u>choose one</u></span>
+      </label>
+      <div id="cam-preview" class="preview"></div>
+      <button id="cam-pattern" class="ghost">Back to test pattern</button>
+    </section>
+  </aside>
 
   <script>
     window.SCRCPY_PORT = {{ scrcpy_port }};

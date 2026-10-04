@@ -4,7 +4,7 @@ SHELL := /bin/bash
 
 ENV_FILE := .env
 
-.PHONY: help setup up down logs ps restart install-cli test lint fmt clean nuke doctor phone stop scrcpy
+.PHONY: help setup up down logs ps restart install-cli test lint fmt clean nuke doctor phone stop scrcpy real-phone emulator-image
 
 help: ## Show this help
 	@grep -hE '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -35,6 +35,12 @@ ps: ## List running cloudphone containers
 
 logs: ## Tail logs (use S=redroid-0 to scope to one service)
 	docker compose logs -f $(S)
+
+real-phone: ## Start a REAL phone: Play Store, any app, uploadable camera (needs /dev/kvm)
+	./scripts/start-real-phone.sh
+
+emulator-image: ## Build the real-phone (Android Emulator) image
+	docker build -t cloudphone/emulator:latest docker/emulator
 
 phone: ## Start ONE phone for native scrcpy (set PROXY=host:port:user:pass to proxy it)
 	./scripts/start-phone.sh
