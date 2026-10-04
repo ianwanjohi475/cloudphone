@@ -42,7 +42,11 @@ if modprobe v4l2loopback devices=4 video_nr=10,11,12,13 card_label="cloudphone-c
   log "v4l2loopback ready at /dev/video10-13 (phone cameras)."
 else
   warn "v4l2loopback not loaded — camera virtualization disabled."
-  warn "Install:  sudo apt-get install -y v4l2loopback-dkms"
+  if grep -qi microsoft /proc/version; then
+    warn "WSL's kernel has no video support. Run once (no sudo):  ./scripts/wsl-camera.sh"
+  else
+    warn "Install:  sudo apt-get install -y v4l2loopback-dkms"
+  fi
 fi
 
 # 4. Persist across reboots ---------------------------------------------------

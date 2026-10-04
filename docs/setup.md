@@ -49,6 +49,21 @@ sudo usermod -aG kvm "$USER"        # then log out and back in
 No `/dev/kvm`? Turn on VT-x/AMD-V (Intel VT / SVM) in the BIOS. In a VM or
 VPS, it needs nested virtualization; many cheap VPS plans do not offer it.
 
+### Windows (WSL2)
+
+Real phones run in WSL2 on Windows 11. Two things differ from plain Ubuntu:
+
+- **KVM:** add `nestedVirtualization=true` under `[wsl2]` in
+  `C:\Users\<you>\.wslconfig`, then `wsl --shutdown` in PowerShell.
+- **Camera upload:** WSL's kernel has no video (V4L2) support, so run
+  `./scripts/wsl-camera.sh` once (as your normal user). It compiles Microsoft's
+  own WSL kernel with video support plus v4l2loopback (20 to 40 minutes), sets
+  both `.wslconfig` lines for you and keeps a backup. Then `wsl --shutdown`,
+  reopen Ubuntu and run `sudo ./scripts/setup-host.sh`.
+
+Without the camera step everything else works; the phone's camera shows
+Android's built-in test scene.
+
 Verify everything:
 
 ```bash
