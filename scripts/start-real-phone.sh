@@ -38,8 +38,11 @@ if [[ ! -e "$VIDEO" ]]; then
 fi
 
 if ! docker image inspect "$IMAGE" >/dev/null 2>&1 || [[ "${REBUILD:-}" == "1" ]]; then
-  log "building $IMAGE (first time downloads ~2 GB of Android)…"
-  docker build -t "$IMAGE" docker/emulator
+  log "building $IMAGE: the first time downloads ~2 GB of Android (10-30 min)."
+  log "steps [1/3] system packages, [2/3] Android tools, [3/3] Android itself; quiet stretches are normal"
+  PROGRESS=()
+  docker buildx version >/dev/null 2>&1 && PROGRESS=(--progress=plain)  # show every line
+  docker build "${PROGRESS[@]}" -t "$IMAGE" docker/emulator
 fi
 
 docker network inspect "$NET" >/dev/null 2>&1 || docker network create "$NET" >/dev/null

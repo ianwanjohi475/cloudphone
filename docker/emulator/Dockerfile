@@ -24,23 +24,28 @@ ENV DEBIAN_FRONTEND=noninteractive \
     API=${API} IMAGE_TAG=${IMAGE_TAG} ABI=${ABI}
 ENV PATH=${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin:${ANDROID_SDK_ROOT}/platform-tools:${ANDROID_SDK_ROOT}/emulator:${PATH}
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN echo ">>> [1/3] installing system packages" \
+    && apt-get update && apt-get install -y --no-install-recommends \
         openjdk-17-jre-headless unzip curl ca-certificates socat ffmpeg v4l-utils procps \
         libpulse0 libgl1 libnss3 libxcomposite1 libxcursor1 libxi6 libxtst6 libasound2 \
         libxdamage1 libxkbfile1 libxrandr2 libdrm2 libgbm1 libx11-xcb1 libxcb1 libbsd0 \
     && rm -rf /var/lib/apt/lists/*
 
-RUN mkdir -p ${ANDROID_SDK_ROOT}/cmdline-tools \
-    && curl -fsSL -o /tmp/tools.zip \
+RUN echo ">>> [2/3] downloading Android command-line tools (~150 MB)" \
+    && mkdir -p ${ANDROID_SDK_ROOT}/cmdline-tools \
+    && curl -fSL --progress-bar -o /tmp/tools.zip \
        https://dl.google.com/android/repository/commandlinetools-linux-${CMDLINE_TOOLS}_latest.zip \
     && unzip -q /tmp/tools.zip -d ${ANDROID_SDK_ROOT}/cmdline-tools \
     && mv ${ANDROID_SDK_ROOT}/cmdline-tools/cmdline-tools ${ANDROID_SDK_ROOT}/cmdline-tools/latest \
     && rm /tmp/tools.zip
 
 # Accepting the SDK licences is required to download the emulator and image.
+# This is the long, quiet-looking step: about 2 GB. Progress lines below.
 RUN yes | sdkmanager --licenses >/dev/null \
+    && echo ">>> [3/3] downloading the Android emulator and Android ${API} with Google Play (~2 GB)" \
     && sdkmanager --install "platform-tools" "emulator" \
-       "system-images;android-${API};${IMAGE_TAG};${ABI}" >/dev/null
+       "system-images;android-${API};${IMAGE_TAG};${ABI}" \
+    && echo ">>> Android downloaded"
 
 COPY entrypoint.sh camera-feed.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/camera-feed.sh
