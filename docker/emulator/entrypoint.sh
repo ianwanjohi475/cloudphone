@@ -26,6 +26,10 @@ if [[ ! -f "$ANDROID_AVD_HOME/${AVD}.ini" ]]; then
   echo no | avdmanager create avd -n "$AVD" -k "$SYSIMG" -d "${DEVICE:-pixel_6}" -p "$ANDROID_AVD_HOME/${AVD}.avd" >/dev/null
 fi
 CFG="$ANDROID_AVD_HOME/${AVD}.avd/config.ini"
+# Only one emulator ever runs per container, so any lock left in the AVD is
+# stale (the container was killed mid-run). Left in place it makes the
+# emulator exit with "A snapshot operation ... is pending".
+find "$ANDROID_AVD_HOME/${AVD}.avd" -maxdepth 1 -name '*.lock' -exec rm -rf {} + 2>/dev/null || true
 setcfg(){ grep -q "^$1=" "$CFG" && sed -i "s#^$1=.*#$1=$2#" "$CFG" || echo "$1=$2" >> "$CFG"; }
 setcfg hw.ramSize "${RAM_MB:-4096}"
 setcfg hw.cpu.ncore "${CORES:-4}"
@@ -87,7 +91,7 @@ fi
 
 log "starting Android ${API} (${IMAGE_TAG}, ${ABI})…"
 exec emulator -avd "$AVD" -port 5556 \
-  -no-window -no-audio -no-boot-anim -no-snapshot-save \
+  -no-window -no-audio -no-boot-anim -no-snapshot -no-metrics \
   -gpu "${GPU:-swiftshader_indirect}" -accel on \
   -camera-back "$CAM" -camera-front "$CAM" \
   -netdelay none -netspeed full \
