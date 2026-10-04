@@ -75,7 +75,12 @@ setcfg hw.camera.back "$CAM"
 setcfg hw.camera.front "$CAM"
 
 # Expose adb: the emulator only listens on 127.0.0.1:5557 (console 5556).
-socat TCP-LISTEN:5555,fork,reuseaddr TCP:127.0.0.1:5557 &
+# Listen on the container's network address only: on 127.0.0.1:5555 the
+# emulator's own adb server would find the forward while scanning for
+# emulators and attach a second time ("emulator-5554"), competing with
+# outside clients for the guest's adb connection.
+IP="$(hostname -i | awk '{print $1}')"
+socat "TCP-LISTEN:5555,fork,reuseaddr,bind=${IP}" TCP:127.0.0.1:5557 &
 
 adb start-server >/dev/null 2>&1 || true
 (
@@ -88,6 +93,11 @@ adb start-server >/dev/null 2>&1 || true
 ) &
 
 EXTRA=()
+# Play Store images ask for adb authorization on screen, and this phone has no
+# screen to tap "Allow" on. Accept our injected key without the prompt.
+if emulator -help 2>/dev/null | grep -q -- '-skip-adb-auth'; then
+  EXTRA+=(-skip-adb-auth)
+fi
 if [[ -n "${PROXY:-}" ]]; then
   if [[ "$PROXY" == http://* ]]; then
     EXTRA+=(-http-proxy "$PROXY")
