@@ -34,6 +34,7 @@ if [[ -e /dev/video10 ]]; then
   ok "virtual camera /dev/video10 present (real-phone camera upload works)"
 else
   warn "v4l2loopback camera not present: real phones fall back to an emulated camera"
+  grep -qi microsoft /proc/version && warn "  on WSL run ./scripts/wsl-camera.sh once to add camera support"
 fi
 
 echo "[gpu]"
@@ -48,6 +49,7 @@ if [[ -e /dev/kvm ]]; then
   ok "/dev/kvm present: real phones (Play Store, ARM apps, camera upload) can run"
 else
   warn "no /dev/kvm: only redroid phones; real phones need VT-x/AMD-V or a KVM-capable VPS"
+  grep -qi microsoft /proc/version && warn "  on WSL: add nestedVirtualization=true under [wsl2] in %USERPROFILE%\\.wslconfig, then wsl --shutdown"
 fi
 
 echo "[arch]"
