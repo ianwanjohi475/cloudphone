@@ -54,6 +54,28 @@ work: apps that refuse emulators or demand hardware-backed Play Integrity
 (many banking apps, some games with anti-cheat), and anything needing a real
 SIM, camera or Bluetooth.
 
+## If an app crashes or will not install
+
+The phone has no real graphics card, so it starts with the emulator's Vulkan
+turned off; that is what usually crashes Chrome, WebView-based apps and games.
+If something still crashes, run this right after the crash and read (or send)
+the output; it names the app and the reason:
+
+```bash
+./cloudphone crashes
+```
+
+Things to try:
+
+- More memory for heavy games: `./cloudphone stop`, then
+  `RAM_MB=8192 CORES=6 ./cloudphone start` (if your machine has it to spare).
+- "Not compatible with your device" or `INSTALL_FAILED_NO_MATCHING_ABIS`: the
+  app is 32-bit only. Android 14 runs 64-bit apps only. Android 11 runs both,
+  at the cost of very new apps that need a newer Android:
+  `./cloudphone reset`, then `API=30 ./cloudphone start`.
+- A machine with a real GPU (not WSL): `GPU=host VULKAN=on ./cloudphone start`
+  is much faster for games.
+
 ## Using it
 
 - Click or touch = tap. Drag = swipe. Mouse wheel scrolls. Right click = Back.
@@ -70,6 +92,7 @@ SIM, camera or Bluetooth.
 | `./cloudphone link` | Print the link(s) again |
 | `./cloudphone install <file>` | Install an app file |
 | `./cloudphone status` / `logs` | What is running / recent log lines |
+| `./cloudphone crashes` | Which apps crashed on the phone, and why |
 | `./cloudphone stop` | Power off (data is kept) |
 | `./cloudphone reset` | Factory reset: deletes the phone's apps and data |
 | `./cloudphone doctor` | Check this machine can run it |
