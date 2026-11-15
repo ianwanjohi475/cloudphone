@@ -66,6 +66,25 @@ the terminal:
 ./cloudphone push report.pdf holiday.mp4
 ```
 
+### Camera and gallery
+
+The *Files* dialog also has two buttons for media from the device you are
+browsing on:
+
+- **Open camera**: shows that device's camera in the page. *Take photo*
+  or *Record video* (with *Flip* for front/back), then a preview with
+  *Retake* and *Upload to phone*.
+- **Photos & videos**: opens the device's own media picker; what you pick is
+  previewed before upload.
+
+Uploaded media lands in the phone's Downloads like any other file. The camera
+is opened only when you press the button and released when you leave the live
+view; the microphone is asked for only when you start a recording; nothing is
+uploaded until you press *Upload to phone*. The in-page camera needs https or
+`localhost` (use `./cloudphone share` from another device); otherwise the
+buttons hand over to the device's camera app. This does not change what the
+virtual phone's own camera shows to apps.
+
 ## Proxy
 
 Press *Proxy* in the side bar to send the phone's traffic through a SOCKS5 or

@@ -245,3 +245,23 @@ dialog button:disabled { opacity: .6; cursor: default; }
 #files-list .name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 #files-list .size { color: var(--muted); font-size: 12px; white-space: nowrap; }
 #files-list button { padding: 4px 9px; font-size: 12px; }
+
+/* Camera / gallery dialog */
+#media-dialog { width: min(460px, calc(100vw - 32px)); }
+#md-video, #md-items img, #md-items video {
+  display: block;
+  width: 100%;
+  max-height: 46vh;
+  border-radius: 8px;
+  background: #000;
+  object-fit: contain;
+}
+#md-video { aspect-ratio: 4 / 3; }
+#md-items { display: grid; gap: 12px; max-height: 56vh; overflow-y: auto; }
+#md-items figure { margin: 0; display: grid; gap: 4px; }
+#md-items figcaption { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+#md-record.recording { background: #d9534f; border-color: #d9534f; color: #fff; }
+#md-status.ok { color: #5fd38d; }
+#md-status.bad { color: #ff7b72; }
+#md-status:empty { display: none; }
+.stack[hidden], .row[hidden] { display: none; }

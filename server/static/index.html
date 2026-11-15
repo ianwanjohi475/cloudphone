@@ -43,9 +43,45 @@
       <h2>Files</h2>
       <p class="muted">Copy documents, photos, videos or any other file onto the phone. They land in <b>Downloads</b>, where the phone's apps can open them.</p>
       <button type="button" id="files-choose" class="primary">Choose files to upload</button>
+      <div class="row">
+        <button type="button" id="files-camera" class="grow">Open camera</button>
+        <button type="button" id="files-gallery" class="grow">Photos &amp; videos</button>
+      </div>
       <p id="files-status" class="muted" role="status"></p>
       <ul id="files-list" aria-label="Files in Downloads"></ul>
       <div class="row end"><button type="button" id="files-close">Close</button></div>
+    </div>
+  </dialog>
+
+  <!-- Camera capture and gallery pick, always previewed before upload.
+       The camera runs only while this dialog shows the live view. -->
+  <input id="md-gallery" type="file" accept="image/*,video/*" multiple hidden>
+  <input id="md-native-photo" type="file" accept="image/*" capture="environment" hidden>
+  <input id="md-native-video" type="file" accept="video/*" capture="environment" hidden>
+  <dialog id="media-dialog">
+    <div class="stack">
+      <h2 id="md-title">Camera</h2>
+      <div id="md-live" class="stack">
+        <video id="md-video" autoplay playsinline muted></video>
+        <div class="row" id="md-controls">
+          <button type="button" id="md-photo" class="primary grow">Take photo</button>
+          <button type="button" id="md-record" class="grow">Record video</button>
+          <button type="button" id="md-flip" title="Switch between front and back camera">Flip</button>
+        </div>
+        <div class="row" id="md-native" hidden>
+          <button type="button" id="md-native-photo-btn" class="primary grow">Take photo</button>
+          <button type="button" id="md-native-video-btn" class="grow">Record video</button>
+        </div>
+      </div>
+      <div id="md-preview" class="stack" hidden>
+        <div id="md-items"></div>
+        <div class="row end">
+          <button type="button" id="md-retake">Retake</button>
+          <button type="button" id="md-upload" class="primary">Upload to phone</button>
+        </div>
+      </div>
+      <p id="md-status" class="muted" role="status"></p>
+      <div class="row end"><button type="button" id="md-close">Close</button></div>
     </div>
   </dialog>
 

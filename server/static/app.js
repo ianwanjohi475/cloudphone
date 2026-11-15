@@ -369,6 +369,197 @@ $("files-input").addEventListener("change", (e) => {
   e.target.value = "";
 });
 
+// -------------------------------------------------------- camera / gallery
+// Capture with this device's camera, or pick from its gallery, preview, then
+// upload into the phone's Downloads. The camera and microphone are opened only
+// when the user presses a button, and are released as soon as the live view
+// is left; nothing is uploaded before "Upload to phone" is pressed.
+const md = {
+  dialog: $("media-dialog"), video: $("md-video"), status: $("md-status"),
+  stream: null, mic: null, recorder: null, chunks: [], discard: false, timer: 0,
+  facing: "environment", pending: [], urls: [], fromCamera: false,
+};
+
+function mdStatus(text, kind = "") {
+  md.status.textContent = text;
+  md.status.className = kind || "muted";
+}
+
+function mdStamp(prefix, ext) {
+  const d = new Date(), p = (n) => String(n).padStart(2, "0");
+  return `${prefix}-${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}.${ext}`;
+}
+
+function mdControls() {
+  const recording = Boolean(md.recorder);
+  $("md-photo").disabled = !md.stream || recording;
+  $("md-record").disabled = !md.stream;
+  $("md-flip").disabled = !md.stream || recording;
+  $("md-record").classList.toggle("recording", recording);
+  if (!recording) $("md-record").textContent = "Record video";
+}
+
+function stopCamera() {
+  clearInterval(md.timer);
+  if (md.recorder) {
+    md.discard = true;  // leaving mid-recording throws the recording away
+    md.recorder.stop();
+  }
+  for (const s of [md.stream, md.mic]) if (s) s.getTracks().forEach((t) => t.stop());
+  md.stream = md.mic = null;
+  md.video.srcObject = null;
+  mdControls();
+}
+
+async function startCamera() {
+  $("md-title").textContent = "Camera";
+  $("md-live").hidden = false;
+  $("md-preview").hidden = true;
+  const supported = Boolean(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+  md.video.hidden = $("md-controls").hidden = !supported;
+  $("md-native").hidden = supported;
+  mdControls();
+  if (!supported) {
+    // Plain http from another machine: browsers only allow the in-page camera
+    // on https or localhost. The device's own camera app still works.
+    return mdStatus("The in-page camera needs https or localhost. These buttons use your device's camera app instead.");
+  }
+  mdStatus("Opening the camera…");
+  try {
+    md.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: md.facing }, audio: false });
+  } catch (e) {
+    return mdStatus(e.name === "NotAllowedError"
+      ? "Camera permission was not given. Allow the camera for this page in your browser, then try again."
+      : `No camera could be opened (${e.name}).`, "bad");
+  }
+  if (!md.dialog.open) return stopCamera();  // closed while the permission prompt was up
+  md.video.srcObject = md.stream;
+  mdStatus("");
+  mdControls();
+}
+
+function takePhoto() {
+  const w = md.video.videoWidth, h = md.video.videoHeight;
+  if (!w || !h) return;
+  const shot = Object.assign(document.createElement("canvas"), { width: w, height: h });
+  shot.getContext("2d").drawImage(md.video, 0, 0);
+  shot.toBlob((blob) => {
+    if (blob) showPreview([new File([blob], mdStamp("photo", "jpg"), { type: "image/jpeg" })], true);
+  }, "image/jpeg", 0.92);
+}
+
+async function toggleRecording() {
+  if (md.recorder) return md.recorder.stop();
+  if (!md.stream) return;
+  if (!("MediaRecorder" in window)) return mdStatus("This browser cannot record video.", "bad");
+  // The microphone is asked for only now, when a recording is started.
+  try {
+    md.mic = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch {
+    md.mic = null;
+    mdStatus("No microphone permission: recording without sound.");
+  }
+  if (!md.stream) return;
+  const tracks = [...md.stream.getVideoTracks(), ...(md.mic ? md.mic.getAudioTracks() : [])];
+  const type = ["video/mp4", "video/webm"].find((t) => MediaRecorder.isTypeSupported(t));
+  const rec = new MediaRecorder(new MediaStream(tracks), type ? { mimeType: type } : {});
+  md.chunks = [];
+  md.discard = false;
+  rec.ondataavailable = (e) => { if (e.data.size) md.chunks.push(e.data); };
+  rec.onstop = () => {
+    clearInterval(md.timer);
+    md.recorder = null;
+    if (md.mic) md.mic.getTracks().forEach((t) => t.stop());
+    md.mic = null;
+    mdControls();
+    if (md.discard || !md.chunks.length) return;
+    const mime = (rec.mimeType || "video/webm").split(";")[0];
+    showPreview([new File(md.chunks, mdStamp("video", mime.includes("mp4") ? "mp4" : "webm"), { type: mime })], true);
+  };
+  rec.start(1000);
+  md.recorder = rec;
+  mdControls();
+  const began = Date.now();
+  const tick = () => {
+    const s = Math.floor((Date.now() - began) / 1000);
+    $("md-record").textContent = `Stop (${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")})`;
+  };
+  tick();
+  md.timer = setInterval(tick, 500);
+}
+
+function clearPreview() {
+  md.urls.forEach((u) => URL.revokeObjectURL(u));
+  md.urls = [];
+  md.pending = [];
+  $("md-items").replaceChildren();
+}
+
+function showPreview(files, fromCamera) {
+  files = [...files];
+  if (!files.length) return;
+  stopCamera();
+  clearPreview();
+  md.pending = files;
+  md.fromCamera = fromCamera;
+  for (const file of files) {
+    const url = URL.createObjectURL(file);
+    md.urls.push(url);
+    const figure = document.createElement("figure");
+    if (file.type.startsWith("image/")) {
+      figure.append(Object.assign(document.createElement("img"), { src: url, alt: `Preview of ${file.name}` }));
+    } else if (file.type.startsWith("video/")) {
+      figure.append(Object.assign(document.createElement("video"), { src: url, controls: true, playsInline: true }));
+    }
+    figure.append(Object.assign(document.createElement("figcaption"), { textContent: `${file.name} · ${humanSize(file.size)}` }));
+    $("md-items").append(figure);
+  }
+  $("md-title").textContent = "Preview";
+  $("md-live").hidden = true;
+  $("md-preview").hidden = false;
+  $("md-retake").textContent = fromCamera ? "Retake" : "Cancel";
+  mdStatus(files.length === 1 ? "Nothing is uploaded until you press Upload." : `${files.length} items. Nothing is uploaded until you press Upload.`);
+  if (!md.dialog.open) md.dialog.showModal();
+}
+
+$("files-camera").addEventListener("click", () => {
+  md.dialog.showModal();
+  startCamera();
+});
+$("files-gallery").addEventListener("click", () => $("md-gallery").click());
+$("md-photo").addEventListener("click", takePhoto);
+$("md-record").addEventListener("click", toggleRecording);
+$("md-flip").addEventListener("click", () => {
+  md.facing = md.facing === "environment" ? "user" : "environment";
+  stopCamera();
+  startCamera();
+});
+$("md-native-photo-btn").addEventListener("click", () => $("md-native-photo").click());
+$("md-native-video-btn").addEventListener("click", () => $("md-native-video").click());
+for (const [id, fromCamera] of [["md-gallery", false], ["md-native-photo", true], ["md-native-video", true]]) {
+  $(id).addEventListener("change", (e) => {
+    showPreview(e.target.files, fromCamera);
+    e.target.value = "";
+  });
+}
+$("md-retake").addEventListener("click", () => {
+  clearPreview();
+  if (md.fromCamera) startCamera();
+  else md.dialog.close();
+});
+$("md-upload").addEventListener("click", () => {
+  const files = md.pending;
+  md.dialog.close();
+  uploadFiles(files);
+});
+$("md-close").addEventListener("click", () => md.dialog.close());
+// Any way of closing (button, Esc) releases the camera and drops the preview.
+md.dialog.addEventListener("close", () => {
+  stopCamera();
+  clearPreview();
+  mdStatus("");
+});
+
 // ------------------------------------------------------------------ proxy
 const px = { dialog: $("proxy-dialog"), status: $("px-status"), hasPassword: false };
 
