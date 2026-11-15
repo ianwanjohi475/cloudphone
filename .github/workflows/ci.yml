@@ -6,52 +6,15 @@ on:
   pull_request:
 
 jobs:
-  python:
+  test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
       - name: Install
-        run: pip install -e "./orchestrator[dev]"
-      - name: Lint
-        run: |
-          cd orchestrator
-          ruff check .
-          ruff format --check .
-      - name: Test
-        run: |
-          cd orchestrator
-          python -m pytest -q
-
-  shell:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: shellcheck
-        run: |
-          sudo apt-get update && sudo apt-get install -y shellcheck
-          shellcheck -S warning scripts/*.sh docker/ws-scrcpy/entrypoint.sh docker/emulator/*.sh
-
-  compose:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Validate compose
-        run: |
-          cp .env.example .env
-          docker compose config -q
-          echo "compose valid"
-
-  images:
-    runs-on: ubuntu-latest
-    needs: [python, compose]
-    steps:
-      - uses: actions/checkout@v4
-      - name: Build dashboard image
-        run: docker build -f docker/dashboard/Dockerfile -t cloudphone/dashboard:ci .
-      # ws-scrcpy build clones an upstream repo + npm; build it on demand to keep
-      # CI fast and hermetic. Uncomment to verify locally / in nightly.
-      # - name: Build ws-scrcpy image
-      #   run: docker build -t cloudphone/ws-scrcpy:ci docker/ws-scrcpy
+        run: sudo apt-get update && sudo apt-get install -y python3-aiohttp shellcheck
+      - name: Shell checks
+        run: bash -n cloudphone && shellcheck -S warning cloudphone
+      - name: Unit tests
+        run: python3 -m unittest discover tests
+      - name: Page script parses
+        run: node --check server/static/app.js

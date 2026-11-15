@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>cloudphone</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <main id="stage">
+    <div id="phone">
+      <canvas id="screen" width="360" height="800" tabindex="0" aria-label="Phone screen"></canvas>
+      <div id="overlay"><div class="spinner"></div><p id="overlay-text">Connecting…</p></div>
+    </div>
+  </main>
+
+  <nav id="bar" aria-label="Phone controls">
+    <button data-key="4" title="Back">◁<span>Back</span></button>
+    <button data-key="3" title="Home">○<span>Home</span></button>
+    <button data-key="187" title="Recent apps">□<span>Recents</span></button>
+    <hr>
+    <button data-key="24" title="Volume up">＋<span>Vol</span></button>
+    <button data-key="25" title="Volume down">－<span>Vol</span></button>
+    <button data-key="26" title="Power (screen on/off)">⏻<span>Power</span></button>
+    <button id="rotate" title="Rotate">⟳<span>Rotate</span></button>
+    <hr>
+    <button id="store" title="Open the Play Store">▶<span>Play Store</span></button>
+    <button id="install" title="Install an app file (.apk, .xapk, .apks, .apkm)">⤓<span>Install file</span></button>
+    <button id="keyboard" title="Show your device's keyboard">⌨<span>Keyboard</span></button>
+    <button id="fullscreen" title="Full screen">⛶<span>Full screen</span></button>
+  </nav>
+
+  <input id="file" type="file" accept=".apk,.xapk,.apks,.apkm,.zip" hidden>
+  <input id="softkeys" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-hidden="true">
+  <div id="drop">Drop the app file to install it</div>
+  <div id="toast" role="status"></div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
