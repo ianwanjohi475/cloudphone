@@ -5,6 +5,8 @@
 #   ./cloudphone share     same, plus a public https link you can open anywhere
 #   ./cloudphone link      print the link(s) again
 #   ./cloudphone install <file>   install an .apk / .xapk / .apks / .apkm
+#   ./cloudphone proxy socks5://user:pass@host:port   route the phone through a
+#                          proxy (also http://…); "proxy off" removes it
 #   ./cloudphone status | logs | stop | doctor
 #   ./cloudphone crashes   show which apps crashed on the phone, and why
 #   ./cloudphone reset     factory reset (deletes the phone's apps and data)
@@ -30,6 +32,7 @@ IMAGE="system-images;android-${API};google_apis_playstore;x86_64"
 AVD=cloudphone
 SERIAL=emulator-5554
 PORT="${PORT:-8080}"
+BRIDGE_PORT="${BRIDGE_PORT:-$((PORT + 1))}"   # local proxy bridge, 127.0.0.1 only
 
 CMDLINE_TOOLS_URL="https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip"
 SCRCPY_VERSION=2.7
@@ -199,13 +202,23 @@ token() {
 
 start_phone() {
   alive emulator && return
-  local features=()
+  local features=() net=()
   [[ "${VULKAN:-off}" == on ]] || features=(-feature -Vulkan)
-  log "powering on the phone…"
+  # With a proxy set, the phone's connections go to the server's bridge, which
+  # forwards them through the SOCKS5/HTTP proxy. The server must be up first.
+  mkdir -p "$RUN"
+  if [[ -e "$CP_HOME/proxy.on" ]]; then
+    net=(-http-proxy "http://127.0.0.1:$BRIDGE_PORT")
+    echo 1 > "$RUN/emulator.bridged"
+    log "powering on the phone (traffic goes through your proxy)…"
+  else
+    echo 0 > "$RUN/emulator.bridged"
+    log "powering on the phone…"
+  fi
   spawn emulator "$SDK/emulator/emulator" -avd "$AVD" -port 5554 \
     -no-window -no-audio -no-boot-anim -no-snapshot \
     -gpu "${GPU:-swiftshader_indirect}" -accel on -netdelay none -netspeed full \
-    "${features[@]}"
+    "${features[@]}" "${net[@]}"
   sleep 3
   alive emulator || { tail -n 20 "$LOGS/emulator.log" >&2; die "The phone failed to start (log above, full log: $LOGS/emulator.log)."; }
 }
@@ -214,6 +227,7 @@ start_server() {
   alive server && return
   "$ADB" start-server >/dev/null 2>&1 || true
   CP_ADB="$ADB" CP_SERIAL="$SERIAL" CP_PORT="$PORT" CP_HOST="${BIND:-127.0.0.1}" \
+  CP_STATE="$CP_HOME" CP_BRIDGE_PORT="$BRIDGE_PORT" CP_LAUNCHER="$ROOT/cloudphone" \
   CP_TOKEN="$(token)" CP_SCRCPY_JAR="$BIN/scrcpy-server.jar" CP_SCRCPY_VERSION="$SCRCPY_VERSION" \
     spawn server python3 "$ROOT/server/app.py"
   sleep 1
@@ -278,19 +292,40 @@ cmd_start() {
   install_android
   install_streamer
   create_phone
-  start_phone
   start_server
+  start_phone
   if [[ "${1:-}" == share ]]; then start_tunnel; fi
   cmd_link
   wait_for_boot
 }
 
-cmd_stop() {
+stop_phone() {
   if alive emulator; then "$ADB" -s "$SERIAL" emu kill >/dev/null 2>&1 || true; fi
-  halt tunnel
-  halt server
-  for _ in 1 2 3 4 5; do alive emulator || break; sleep 1; done
+  for _ in 1 2 3 4 5 6 7 8; do alive emulator || break; sleep 1; done
   halt emulator
+}
+
+cmd_reboot() { # power the phone off and on; the web server keeps running
+  stop_phone
+  start_phone
+}
+
+cmd_proxy() {
+  local url="${1:-}" api="http://127.0.0.1:$PORT/api/proxy"
+  alive server || die "The phone is not running. Start it first: ./cloudphone start"
+  if [[ -z "$url" ]]; then
+    curl -sS -b "cp_key=$(token)" "$api"
+  else
+    curl -sS -b "cp_key=$(token)" -H 'Content-Type: application/json' \
+      -d "$(python3 -c 'import json,sys; print(json.dumps({"url": sys.argv[1]}))' "$url")" "$api"
+  fi
+  echo
+}
+
+cmd_stop() {
+  halt tunnel
+  stop_phone
+  halt server
   log "stopped. Your apps and data are kept; ./cloudphone start brings the phone back."
 }
 
@@ -342,6 +377,8 @@ case "${1:-start}" in
   install) cmd_install "${2:-}" ;;
   reset)   cmd_reset ;;
   crashes) cmd_crashes ;;
+  proxy)   cmd_proxy "${2:-}" ;;
+  reboot)  cmd_reboot ;;
   logs)    tail -n 40 "$LOGS"/*.log ;;
-  *)       sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//' ;;
+  *)       sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//' ;;
 esac

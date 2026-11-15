@@ -54,6 +54,29 @@ work: apps that refuse emulators or demand hardware-backed Play Integrity
 (many banking apps, some games with anti-cheat), and anything needing a real
 SIM, camera or Bluetooth.
 
+## Proxy
+
+Press *Proxy* in the side bar to send the phone's traffic through a SOCKS5 or
+HTTP proxy, with a username and password if it needs them. *Save and test*
+checks the login and shows the address websites will see. From the terminal:
+
+```bash
+./cloudphone proxy socks5://user:pass@host:1080
+```
+
+```bash
+./cloudphone proxy off
+```
+
+- Turning a proxy on or off restarts the phone (about a minute). Switching
+  from one proxy to another applies at once.
+- If the proxy goes down, the phone's connections fail; they never fall back
+  to your own connection.
+- Only TCP goes through the proxy. Name lookups (DNS) and UDP traffic (QUIC,
+  some game and call data) still leave from your own connection.
+- The proxy password is stored in `~/.cloudphone/proxy.json`, readable only by
+  you, and is never sent back to the page.
+
 ## If an app crashes or will not install
 
 The phone has no real graphics card, so it starts with the emulator's Vulkan
@@ -91,6 +114,8 @@ Things to try:
 | `./cloudphone share` | Same, plus a public https link (Cloudflare quick tunnel) |
 | `./cloudphone link` | Print the link(s) again |
 | `./cloudphone install <file>` | Install an app file |
+| `./cloudphone proxy <url>` / `proxy off` | Route the phone through a SOCKS5 / HTTP proxy |
+| `./cloudphone reboot` | Restart the phone only |
 | `./cloudphone status` / `logs` | What is running / recent log lines |
 | `./cloudphone crashes` | Which apps crashed on the phone, and why |
 | `./cloudphone stop` | Power off (data is kept) |
@@ -121,6 +146,9 @@ browser tab ──WebSocket──> server/app.py ──adb──> Android Emulat
   browser cannot decode H.264 (for example when the page is opened over plain
   http from another machine), it falls back to screenshots: slower, but it
   works everywhere.
+- `server/proxy.py`: the emulator only understands a plain HTTP proxy with no
+  login, so it is pointed at a small bridge on `127.0.0.1` that forwards each
+  connection through your SOCKS5 or HTTP proxy.
 - The server listens on `127.0.0.1` only and every request needs the access
   key from the link. `share` exposes it through a Cloudflare quick tunnel.
 

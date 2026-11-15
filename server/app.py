@@ -13,7 +13,9 @@ screen and takes touch / keyboard input.
 
 Configuration is by environment variable, set by the `cloudphone` launcher:
   CP_ADB, CP_SERIAL, CP_HOST, CP_PORT, CP_TOKEN, CP_SCRCPY_JAR,
-  CP_MAX_SIZE, CP_BITRATE, CP_FPS
+  CP_MAX_SIZE, CP_BITRATE, CP_FPS,
+  CP_STATE (folder for saved settings), CP_BRIDGE_PORT (proxy bridge port),
+  CP_LAUNCHER (path of the `cloudphone` script, used to restart the phone)
 """
 
 from __future__ import annotations
@@ -35,6 +37,8 @@ from urllib.parse import urlsplit
 
 from aiohttp import WSMsgType, web
 
+import proxy as proxy_mod
+
 HERE = Path(__file__).resolve().parent
 STATIC = HERE / "static"
 
@@ -48,6 +52,11 @@ SCRCPY_VERSION = os.environ.get("CP_SCRCPY_VERSION", "2.7")
 MAX_SIZE = int(os.environ.get("CP_MAX_SIZE", "1280"))
 BITRATE = int(os.environ.get("CP_BITRATE", "4000000"))
 FPS = int(os.environ.get("CP_FPS", "30"))
+
+STATE_DIR = Path(os.environ["CP_STATE"]) if os.environ.get("CP_STATE") else None
+BRIDGE_PORT = int(os.environ.get("CP_BRIDGE_PORT", "0"))
+LAUNCHER = os.environ.get("CP_LAUNCHER", "")
+bridge = proxy_mod.Bridge(STATE_DIR / "proxy.json" if STATE_DIR else None)
 
 REMOTE_JAR = "/data/local/tmp/cloudphone-scrcpy.jar"
 COOKIE = "cp_key"
@@ -500,6 +509,71 @@ async def api_launch(request: web.Request) -> web.Response:
     return web.json_response({"ok": ok}, status=200 if ok else 404)
 
 
+# ------------------------------------------------------------------ proxy
+def _phone_uses_bridge() -> bool:
+    """Whether the running phone was started pointing at the proxy bridge
+    (the launcher records this when it powers the phone on)."""
+    try:
+        return (STATE_DIR / "run" / "emulator.bridged").read_text().strip() == "1"
+    except (OSError, TypeError):
+        return False
+
+
+def _proxy_state() -> dict:
+    cfg = bridge.config
+    return {**cfg.public(), "needs_restart": cfg.enabled != _phone_uses_bridge()}
+
+
+async def api_proxy_get(request: web.Request) -> web.Response:
+    return web.json_response(_proxy_state())
+
+
+async def api_proxy_set(request: web.Request) -> web.Response:
+    try:
+        body = await request.json()
+        if "url" in body:
+            cfg = proxy_mod.ProxyConfig.from_url(str(body["url"]))
+        else:
+            old = bridge.config
+            cfg = proxy_mod.ProxyConfig(
+                type=str(body.get("type", "none")),
+                host=str(body.get("host", "")).strip(),
+                port=int(body.get("port") or 0),
+                username=str(body.get("username", "")),
+                # The page never receives the saved password; leaving the
+                # field empty means "keep it".
+                password=str(body["password"]) if "password" in body else old.password,
+            )
+        cfg.validate()
+        ip = await proxy_mod.exit_ip(cfg) if cfg.enabled else ""
+    except proxy_mod.ProxyError as e:
+        return web.json_response({"ok": False, "error": str(e)}, status=422)
+    except (ValueError, TypeError, AttributeError):
+        return web.json_response({"ok": False, "error": "bad request"}, status=400)
+
+    bridge.set(cfg)
+    restarting = False
+    if STATE_DIR:
+        marker = STATE_DIR / "proxy.on"
+        marker.touch() if cfg.enabled else marker.unlink(missing_ok=True)
+        # The phone only learns about the bridge when it powers on, so going
+        # from "no proxy" to "proxy" (or back) restarts it. Changing from one
+        # proxy to another applies immediately.
+        if LAUNCHER and cfg.enabled != _phone_uses_bridge():
+            await asyncio.create_subprocess_exec(
+                LAUNCHER, "reboot",
+                stdin=asyncio.subprocess.DEVNULL, stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.DEVNULL, start_new_session=True,
+            )  # fmt: skip
+            restarting = True
+    return web.json_response({"ok": True, "ip": ip, "restarting": restarting, **cfg.public()})
+
+
+async def _start_bridge(app: web.Application) -> None:
+    if BRIDGE_PORT:
+        await bridge.start("127.0.0.1", BRIDGE_PORT)
+
+
 async def index(request: web.Request) -> web.FileResponse:
     return web.FileResponse(STATIC / "index.html", headers={"Cache-Control": "no-cache"})
 
@@ -540,6 +614,9 @@ def make_app() -> web.Application:
     app.router.add_get("/api/status", api_status)
     app.router.add_post("/api/install", api_install)
     app.router.add_post("/api/launch", api_launch)
+    app.router.add_get("/api/proxy", api_proxy_get)
+    app.router.add_post("/api/proxy", api_proxy_set)
+    app.on_startup.append(_start_bridge)
     app.router.add_static("/static", STATIC)
     return app
 

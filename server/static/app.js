@@ -244,6 +244,7 @@ const KEYS = {
 const softkeys = $("softkeys");
 
 window.addEventListener("keydown", (e) => {
+  if ($("proxy-dialog").open) return;                     // typing in the proxy form
   if (e.target === softkeys && !(e.key in KEYS)) return;  // handled by "input" below
   if (e.ctrlKey || e.metaKey || e.altKey) return;         // leave browser shortcuts alone
   if (e.key in KEYS) {
@@ -257,6 +258,7 @@ window.addEventListener("keydown", (e) => {
 });
 
 window.addEventListener("paste", (e) => {
+  if ($("proxy-dialog").open) return;
   const text = e.clipboardData && e.clipboardData.getData("text");
   if (text) send({ t: "text", s: text });
   e.preventDefault();
@@ -287,6 +289,67 @@ $("store").addEventListener("click", async () => {
     body: JSON.stringify({ package: "com.android.vending" }),
   }).catch(() => null);
   if (!res || !res.ok) toast("Could not open the Play Store on this phone.", true);
+});
+
+// ------------------------------------------------------------------ proxy
+const px = { dialog: $("proxy-dialog"), status: $("px-status"), hasPassword: false };
+
+function pxStatus(text, kind = "") {
+  px.status.textContent = text;
+  px.status.className = kind || "muted";
+}
+
+function pxShowFields() {
+  $("px-fields").hidden = $("px-type").value === "none";
+}
+
+$("px-type").addEventListener("change", pxShowFields);
+$("px-cancel").addEventListener("click", () => px.dialog.close());
+
+$("proxy").addEventListener("click", async () => {
+  pxStatus("");
+  px.dialog.showModal();
+  const cfg = await fetch("/api/proxy").then((r) => r.json()).catch(() => null);
+  if (!cfg) return pxStatus("Could not load the current setting.", "bad");
+  $("px-type").value = cfg.type;
+  $("px-host").value = cfg.host;
+  $("px-port").value = cfg.port || "";
+  $("px-user").value = cfg.username;
+  $("px-pass").value = "";
+  $("px-pass").placeholder = cfg.has_password ? "saved (leave empty to keep)" : "optional";
+  px.hasPassword = cfg.has_password;
+  pxShowFields();
+  if (cfg.type !== "none") {
+    pxStatus(cfg.needs_restart
+      ? "Saved, but the phone must restart to use it: run ./cloudphone reboot"
+      : `Active: ${cfg.type.toUpperCase()} ${cfg.host}:${cfg.port}`, cfg.needs_restart ? "bad" : "ok");
+  }
+});
+
+$("proxy-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const body = {
+    type: $("px-type").value,
+    host: $("px-host").value.trim(),
+    port: Number($("px-port").value),
+    username: $("px-user").value,
+  };
+  // An empty password field keeps the saved password; typing replaces it.
+  if ($("px-pass").value || !px.hasPassword) body.password = $("px-pass").value;
+  $("px-save").disabled = true;
+  pxStatus(body.type === "none" ? "Removing the proxy…" : "Testing the proxy…");
+  const res = await fetch("/api/proxy", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  }).then((r) => r.json()).catch(() => null);
+  $("px-save").disabled = false;
+  if (!res || !res.ok) return pxStatus((res && res.error) || "Could not save.", "bad");
+  px.hasPassword = res.has_password;
+  $("px-pass").value = "";
+  $("px-pass").placeholder = res.has_password ? "saved (leave empty to keep)" : "optional";
+  const what = res.type === "none" ? "Proxy removed." : `Working. Websites will see the address ${res.ip}.`;
+  pxStatus(res.restarting ? `${what} The phone is restarting to apply it (about a minute).` : what, "ok");
 });
 
 // ------------------------------------------------------------ app install

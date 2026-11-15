@@ -26,6 +26,7 @@
     <hr>
     <button id="store" title="Open the Play Store">▶<span>Play Store</span></button>
     <button id="install" title="Install an app file (.apk, .xapk, .apks, .apkm)">⤓<span>Install file</span></button>
+    <button id="proxy" title="Route the phone through a proxy">⇄<span>Proxy</span></button>
     <button id="keyboard" title="Show your device's keyboard">⌨<span>Keyboard</span></button>
     <button id="fullscreen" title="Full screen">⛶<span>Full screen</span></button>
   </nav>
@@ -34,6 +35,34 @@
   <input id="softkeys" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-hidden="true">
   <div id="drop">Drop the app file to install it</div>
   <div id="toast" role="status"></div>
+
+  <dialog id="proxy-dialog">
+    <form id="proxy-form" method="dialog">
+      <h2>Proxy</h2>
+      <p class="muted">Send this phone's internet traffic through a proxy server.</p>
+      <label>Type
+        <select id="px-type">
+          <option value="none">No proxy (direct)</option>
+          <option value="socks5">SOCKS5</option>
+          <option value="http">HTTP</option>
+        </select>
+      </label>
+      <div id="px-fields">
+        <div class="row">
+          <label class="grow">Host<input id="px-host" placeholder="proxy.example.com" autocomplete="off" spellcheck="false"></label>
+          <label class="port">Port<input id="px-port" type="number" min="1" max="65535" placeholder="1080"></label>
+        </div>
+        <label>Username<input id="px-user" placeholder="optional" autocomplete="off" spellcheck="false"></label>
+        <label>Password<input id="px-pass" type="password" placeholder="optional" autocomplete="new-password"></label>
+      </div>
+      <p id="px-status" class="muted" role="status"></p>
+      <p class="muted small">Web and app connections (TCP) go through the proxy. Name lookups (DNS) and UDP traffic such as QUIC and some game or call data do not.</p>
+      <div class="row end">
+        <button type="button" id="px-cancel">Close</button>
+        <button type="submit" id="px-save" class="primary">Save and test</button>
+      </div>
+    </form>
+  </dialog>
 
   <script src="/static/app.js"></script>
 </body>
