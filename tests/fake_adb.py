@@ -101,6 +101,17 @@ def main() -> None:
             out.write("1\n")
         elif "abilist" in line:
             out.write("x86_64,arm64-v8a\n")
+        elif "stat -c" in line:
+            for f in sorted((STATE / "sdcard").glob("*")):
+                out.write(f"regular file|{f.stat().st_size}|{int(f.stat().st_mtime)}|{f.name}\n")
+        elif line.startswith("rm -f -- "):
+            import shlex
+
+            (STATE / "sdcard" / Path(shlex.split(line)[3]).name).unlink(missing_ok=True)
+    elif cmd == "push" and rest[1].startswith("/sdcard/"):
+        (STATE / "sdcard").mkdir(exist_ok=True)
+        (STATE / "sdcard" / Path(rest[1]).name).write_bytes(Path(rest[0]).read_bytes())
+        out.write("1 file pushed\n")
     elif cmd == "forward" and rest[0] != "--remove":
         (STATE / f"forward-{rest[1].split(':', 1)[1]}").write_text(rest[0].split(":", 1)[1])
     elif cmd == "exec-out":

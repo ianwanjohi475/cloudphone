@@ -54,6 +54,18 @@ work: apps that refuse emulators or demand hardware-backed Play Integrity
 (many banking apps, some games with anti-cheat), and anything needing a real
 SIM, camera or Bluetooth.
 
+## Copying files onto the phone
+
+Press *Files* in the side bar and choose documents, photos, videos or any
+other files; or just drag them onto the page. They are copied into the
+phone's **Downloads** folder, where the Files app, the gallery and other apps
+can open them. The same dialog lists what is there and can delete it. From
+the terminal:
+
+```bash
+./cloudphone push report.pdf holiday.mp4
+```
+
 ## Proxy
 
 Press *Proxy* in the side bar to send the phone's traffic through a SOCKS5 or
@@ -114,6 +126,7 @@ Things to try:
 | `./cloudphone share` | Same, plus a public https link (Cloudflare quick tunnel) |
 | `./cloudphone link` | Print the link(s) again |
 | `./cloudphone install <file>` | Install an app file |
+| `./cloudphone push <file>…` | Copy files into the phone's Downloads |
 | `./cloudphone proxy <url>` / `proxy off` | Route the phone through a SOCKS5 / HTTP proxy |
 | `./cloudphone reboot` | Restart the phone only |
 | `./cloudphone status` / `logs` | What is running / recent log lines |

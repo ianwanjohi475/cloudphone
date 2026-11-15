@@ -26,6 +26,7 @@ import json
 import os
 import re
 import secrets
+import shlex
 import shutil
 import socket
 import struct
@@ -492,6 +493,70 @@ async def api_install(request: web.Request) -> web.Response:
     return web.json_response({"ok": True, "message": message})
 
 
+# ------------------------------------------------------------------ files
+FILES_DIR = "/sdcard/Download"  # shows up as "Downloads" in the phone's Files app
+
+
+def safe_name(name: str) -> str:
+    """A file name that is safe to put in the phone's Downloads folder."""
+    name = re.sub(r"[^\w .()\-]+", "_", Path(name.replace("\\", "/")).name).strip(" .")
+    stem, dot, ext = name.rpartition(".")
+    return (f"{stem[:100]}.{ext[:12]}" if dot and stem else name[:112]) or "file"
+
+
+async def api_files_list(request: web.Request) -> web.Response:
+    if await device_state() != "ready":
+        return web.json_response({"files": [], "error": "the phone is not ready yet"}, status=409)
+    _, out = await shell(f"cd {FILES_DIR} 2>/dev/null && stat -c '%F|%s|%Y|%n' -- * 2>/dev/null")
+    files = []
+    for line in out.decode(errors="replace").splitlines():
+        kind, _, rest = line.partition("|")
+        size, _, rest = rest.partition("|")
+        mtime, _, name = rest.partition("|")
+        if kind == "regular file" and size.isdigit() and mtime.isdigit():
+            files.append({"name": name, "size": int(size), "mtime": int(mtime)})
+    files.sort(key=lambda f: -f["mtime"])
+    return web.json_response({"files": files, "folder": "Downloads"})
+
+
+async def api_files_upload(request: web.Request) -> web.Response:
+    """Copy uploaded files (any type) into the phone's Downloads folder."""
+    if await device_state() != "ready":
+        return web.json_response({"ok": False, "error": "the phone is not ready yet"}, status=409)
+    saved, reader = [], await request.multipart()
+    await shell(f"mkdir -p {FILES_DIR}")
+    with tempfile.TemporaryDirectory(prefix="cloudphone-file-") as tmp:
+        while (part := await reader.next()) is not None:
+            if part.name != "file" or not part.filename:
+                continue
+            name = safe_name(part.filename)
+            local = Path(tmp) / "upload"
+            with local.open("wb") as f:
+                while chunk := await part.read_chunk(1 << 20):
+                    f.write(chunk)
+            target = f"{FILES_DIR}/{name}"
+            code, out = await adb("push", str(local), target, timeout=3600)
+            if code != 0:
+                text = out.decode(errors="replace").strip().splitlines()
+                error = text[-1] if text else "copy failed"
+                return web.json_response({"ok": False, "error": f"{name}: {error}", "saved": saved}, status=422)
+            # Tell the gallery / Files app about it (harmless if unsupported).
+            await shell(f"content call --uri content://media --method scan_file --arg {shlex.quote(target)}")
+            saved.append(name)
+    if not saved:
+        return web.json_response({"ok": False, "error": "no file"}, status=400)
+    return web.json_response({"ok": True, "saved": saved, "folder": "Downloads"})
+
+
+async def api_files_delete(request: web.Request) -> web.Response:
+    name = request.query.get("name", "")
+    if not name or "/" in name or name in (".", "..") or "\x00" in name:
+        return web.json_response({"ok": False, "error": "bad file name"}, status=400)
+    target = shlex.quote(f"{FILES_DIR}/{name}")
+    code, _ = await shell(f"rm -f -- {target} && [ ! -e {target} ]")
+    return web.json_response({"ok": code == 0}, status=200 if code == 0 else 500)
+
+
 # -------------------------------------------------------------------- api
 async def api_status(request: web.Request) -> web.Response:
     return web.json_response({"state": await device_state()})
@@ -614,6 +679,9 @@ def make_app() -> web.Application:
     app.router.add_get("/api/status", api_status)
     app.router.add_post("/api/install", api_install)
     app.router.add_post("/api/launch", api_launch)
+    app.router.add_get("/api/files", api_files_list)
+    app.router.add_post("/api/files", api_files_upload)
+    app.router.add_delete("/api/files", api_files_delete)
     app.router.add_get("/api/proxy", api_proxy_get)
     app.router.add_post("/api/proxy", api_proxy_set)
     app.on_startup.append(_start_bridge)

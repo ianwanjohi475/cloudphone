@@ -244,7 +244,7 @@ const KEYS = {
 const softkeys = $("softkeys");
 
 window.addEventListener("keydown", (e) => {
-  if ($("proxy-dialog").open) return;                     // typing in the proxy form
+  if (document.querySelector("dialog[open]")) return;     // typing in a dialog
   if (e.target === softkeys && !(e.key in KEYS)) return;  // handled by "input" below
   if (e.ctrlKey || e.metaKey || e.altKey) return;         // leave browser shortcuts alone
   if (e.key in KEYS) {
@@ -258,7 +258,7 @@ window.addEventListener("keydown", (e) => {
 });
 
 window.addEventListener("paste", (e) => {
-  if ($("proxy-dialog").open) return;
+  if (document.querySelector("dialog[open]")) return;
   const text = e.clipboardData && e.clipboardData.getData("text");
   if (text) send({ t: "text", s: text });
   e.preventDefault();
@@ -289,6 +289,84 @@ $("store").addEventListener("click", async () => {
     body: JSON.stringify({ package: "com.android.vending" }),
   }).catch(() => null);
   if (!res || !res.ok) toast("Could not open the Play Store on this phone.", true);
+});
+
+// ------------------------------------------------------------------ files
+const fd = { dialog: $("files-dialog"), status: $("files-status"), list: $("files-list") };
+const APP_FILE = /\.(apk|xapk|apks|apkm)$/i;
+
+function fdStatus(text, kind = "") {
+  fd.status.textContent = text;
+  fd.status.className = kind || "muted";
+}
+
+function humanSize(n) {
+  const units = ["B", "KB", "MB", "GB"];
+  let i = 0;
+  while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
+  return `${n >= 10 || i === 0 ? Math.round(n) : n.toFixed(1)} ${units[i]}`;
+}
+
+async function refreshFiles() {
+  const res = await fetch("/api/files").then((r) => r.json()).catch(() => null);
+  fd.list.replaceChildren();
+  if (!res || res.error) return fdStatus((res && res.error) || "Could not read the phone's files.", "bad");
+  for (const file of res.files) {
+    const li = document.createElement("li");
+    const name = Object.assign(document.createElement("span"), { className: "name", textContent: file.name });
+    const size = Object.assign(document.createElement("span"), { className: "size", textContent: humanSize(file.size) });
+    const del = Object.assign(document.createElement("button"), { type: "button", textContent: "Delete" });
+    del.setAttribute("aria-label", `Delete ${file.name}`);
+    del.addEventListener("click", async () => {
+      if (!confirm(`Delete ${file.name} from the phone?`)) return;
+      await fetch("/api/files?name=" + encodeURIComponent(file.name), { method: "DELETE" }).catch(() => null);
+      refreshFiles();
+    });
+    li.append(name, size, del);
+    fd.list.append(li);
+  }
+}
+
+// Copy files into the phone's Downloads folder, with progress.
+function uploadFiles(files) {
+  files = [...files];
+  if (!files.length) return;
+  const label = files.length === 1 ? files[0].name : `${files.length} files`;
+  const say = (text, kind, sticky) => {
+    if (fd.dialog.open) fdStatus(text, kind);
+    else toast(text, kind === "bad", sticky);
+  };
+  const body = new FormData();
+  for (const f of files) body.append("file", f);
+  const xhr = new XMLHttpRequest();
+  xhr.open("POST", "/api/files");
+  xhr.upload.onprogress = (e) => {
+    if (!e.lengthComputable) return;
+    const pct = Math.round((e.loaded / e.total) * 100);
+    say(pct < 100 ? `Uploading ${label}… ${pct}%` : `Copying ${label} onto the phone…`, "", true);
+  };
+  xhr.onload = () => {
+    let reply = {};
+    try { reply = JSON.parse(xhr.responseText); } catch { /* not json */ }
+    if (reply.ok) say(`${label} copied to the phone's Downloads folder.`, "ok");
+    else say(`Could not copy ${label}: ${reply.error || xhr.statusText}`, "bad");
+    if (fd.dialog.open) refreshFiles();
+  };
+  xhr.onerror = () => say(`Upload of ${label} failed.`, "bad");
+  say(`Uploading ${label}…`, "", true);
+  xhr.send(body);
+}
+
+$("files").addEventListener("click", () => {
+  fdStatus("");
+  fd.dialog.showModal();
+  refreshFiles();
+});
+$("files-close").addEventListener("click", () => fd.dialog.close());
+$("files-choose").addEventListener("click", () => $("files-input").click());
+$("files-input").addEventListener("change", (e) => {
+  uploadFiles(e.target.files);
+  e.target.value = "";
 });
 
 // ------------------------------------------------------------------ proxy
@@ -395,7 +473,10 @@ window.addEventListener("drop", (e) => {
   e.preventDefault();
   dragDepth = 0;
   $("drop").classList.remove("on");
-  install(e.dataTransfer.files[0]);
+  // App files are installed; everything else is copied to Downloads.
+  const dropped = [...e.dataTransfer.files];
+  dropped.filter((f) => APP_FILE.test(f.name)).forEach(install);
+  uploadFiles(dropped.filter((f) => !APP_FILE.test(f.name)));
 });
 
 // ------------------------------------------------------------------- start

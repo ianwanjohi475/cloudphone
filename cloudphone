@@ -5,6 +5,7 @@
 #   ./cloudphone share     same, plus a public https link you can open anywhere
 #   ./cloudphone link      print the link(s) again
 #   ./cloudphone install <file>   install an .apk / .xapk / .apks / .apkm
+#   ./cloudphone push <file>…     copy documents/videos into the phone's Downloads
 #   ./cloudphone proxy socks5://user:pass@host:port   route the phone through a
 #                          proxy (also http://…); "proxy off" removes it
 #   ./cloudphone status | logs | stop | doctor
@@ -357,6 +358,19 @@ cmd_crashes() {
   grep -iE 'error|fatal|vulkan|gpu' "$LOGS/emulator.log" | tail -n 15 || true
 }
 
+cmd_push() {
+  local args=() file
+  (( $# )) || die "usage: ./cloudphone push <file>…"
+  for file in "$@"; do
+    [[ -f "$file" ]] || die "No such file: $file"
+    args+=(-F "file=@$file")
+  done
+  alive server || die "The phone is not running. Start it first: ./cloudphone start"
+  log "copying $# file(s) into the phone's Downloads…"
+  curl -sS -b "cp_key=$(token)" "${args[@]}" "http://127.0.0.1:$PORT/api/files"
+  echo
+}
+
 cmd_reset() {
   local answer
   read -r -p "Factory reset: delete every app, account and file on the phone? [y/N] " answer
@@ -377,8 +391,9 @@ case "${1:-start}" in
   install) cmd_install "${2:-}" ;;
   reset)   cmd_reset ;;
   crashes) cmd_crashes ;;
+  push)    shift; cmd_push "$@" ;;
   proxy)   cmd_proxy "${2:-}" ;;
   reboot)  cmd_reboot ;;
   logs)    tail -n 40 "$LOGS"/*.log ;;
-  *)       sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//' ;;
+  *)       sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//' ;;
 esac

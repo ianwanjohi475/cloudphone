@@ -31,6 +31,17 @@ class ControlMessages(unittest.TestCase):
         self.assertEqual(struct.unpack(">hh", scroll[13:17]), (0, -0x8000))
 
 
+class SafeName(unittest.TestCase):
+    def test_names(self):
+        self.assertEqual(app.safe_name("My Report (final).pdf"), "My Report (final).pdf")
+        self.assertEqual(app.safe_name("../../etc/passwd"), "passwd")
+        self.assertEqual(app.safe_name("C:\\Users\\ian\\clip.mp4"), "clip.mp4")
+        self.assertEqual(app.safe_name("a;rm -rf $HOME`x`.txt"), "a_rm -rf _HOME_x_.txt")
+        self.assertEqual(app.safe_name("видео.mp4"), "видео.mp4")
+        self.assertEqual(app.safe_name("..."), "file")
+        self.assertLessEqual(len(app.safe_name("x" * 500 + ".mp4")), 112)
+
+
 class PickApks(unittest.TestCase):
     ABIS = ["x86_64", "arm64-v8a"]
 

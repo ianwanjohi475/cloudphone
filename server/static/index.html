@@ -26,6 +26,7 @@
     <hr>
     <button id="store" title="Open the Play Store">▶<span>Play Store</span></button>
     <button id="install" title="Install an app file (.apk, .xapk, .apks, .apkm)">⤓<span>Install file</span></button>
+    <button id="files" title="Copy documents, photos or videos onto the phone">▤<span>Files</span></button>
     <button id="proxy" title="Route the phone through a proxy">⇄<span>Proxy</span></button>
     <button id="keyboard" title="Show your device's keyboard">⌨<span>Keyboard</span></button>
     <button id="fullscreen" title="Full screen">⛶<span>Full screen</span></button>
@@ -33,8 +34,20 @@
 
   <input id="file" type="file" accept=".apk,.xapk,.apks,.apkm,.zip" hidden>
   <input id="softkeys" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-hidden="true">
-  <div id="drop">Drop the app file to install it</div>
+  <input id="files-input" type="file" multiple hidden>
+  <div id="drop">Drop app files to install them, anything else to copy it to the phone</div>
   <div id="toast" role="status"></div>
+
+  <dialog id="files-dialog">
+    <div class="stack">
+      <h2>Files</h2>
+      <p class="muted">Copy documents, photos, videos or any other file onto the phone. They land in <b>Downloads</b>, where the phone's apps can open them.</p>
+      <button type="button" id="files-choose" class="primary">Choose files to upload</button>
+      <p id="files-status" class="muted" role="status"></p>
+      <ul id="files-list" aria-label="Files in Downloads"></ul>
+      <div class="row end"><button type="button" id="files-close">Close</button></div>
+    </div>
+  </dialog>
 
   <dialog id="proxy-dialog">
     <form id="proxy-form" method="dialog">
